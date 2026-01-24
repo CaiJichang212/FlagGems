@@ -99,7 +99,7 @@ which is a library that implements a Triton JIT runtime in C++ and enables calli
 Note that if you are building FlagGems with an external TritonJIT, you should build and install it
 as a precondition and then pass the option `-DTritonJIT_ROOT=<install path>` to CMake.
 
-Other commonly used environemnt variables that configures `scikit-build-core` are:
+Other commonly used environment variables that configure `scikit-build-core` are:
 
 1. `SKBUILD_CMAKE_BUILD_TYPE`, which is used to configure the build type of the project.
    Valid values are `Release`, `Debug`, `RelWithDebInfo` and `MinSizeRel`;
@@ -115,7 +115,7 @@ Commonly used pip options are:
    while the Python part stays in situ and a loader is installed in the `site-packages` directory to find it.
    For more details about this installation mode, please refer to the
    `scikit-build-core`'s [documentation](https://scikit-build-core.readthedocs.io/en/latest/configuration/index.html#editable-installs).
-1. `--no-build-isolation`：Do not to create a separate virtualenv to build the project.
+1. `--no-build-isolation`: Do not create a separate virtualenv to build the project.
    This is commonly used with an editable installation.
    Note that when building without isolation, you have to install the build dependencies manually.
 1. `--no-deps`: Do not install package dependencies.
@@ -166,7 +166,7 @@ If you want to disable the default behavior (source-dir -> sdist -> wheel). You 
 - Or pass both `--sdist` and `--wheel` to build both the source and binary distributions
   from the source (source-dir -> sdist, and source-dir -> wheel).
 
-The result is placed in the `.dist/` directory.
+The result is placed in the `dist/` directory.
 
 ### Use Build frontend: `pip`
 
