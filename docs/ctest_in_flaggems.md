@@ -8,7 +8,7 @@ ctest .
 
 This will run all the test files under `FlagGems/ctests`
 
-Use `ctest -V —R xxx_test` for a specific test with log info, where
+Use `ctest -V -R xxx_test` for a specific test with log info, where
 
 - `-R <regex>`: Runs only the tests whose names match the given regular expression.
 - `-V`: Enables verbose mode, printing detailed output for each test, including any messages sent to stdout/stderr.
