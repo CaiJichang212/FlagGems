@@ -3,112 +3,158 @@ import triton
 import triton.language as tl
 
 
+@triton.autotune(
+    configs=[
+        triton.Config({"BLOCK_SIZE": 128}, num_warps=2, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 512}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=8, num_stages=3),
+        triton.Config({"BLOCK_SIZE": 2048}, num_warps=8, num_stages=4),
+        triton.Config({"BLOCK_SIZE": 4096}, num_warps=8, num_stages=4),
+    ],
+    key=["n_elements", "DTYPE_ID"],
+)
 @triton.jit
-def logaddexp_kernel(x_ptr, y_ptr, out_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
+def logaddexp_kernel(
+    input_ptr,
+    other_ptr,
+    out_ptr,
+    n_elements,
+    OUT_DTYPE: tl.constexpr,
+    DTYPE_ID: tl.constexpr,
+    BLOCK_SIZE: tl.constexpr,
+):
     pid = tl.program_id(axis=0)
-    block_start = pid * BLOCK_SIZE
-    offsets = block_start + tl.arange(0, BLOCK_SIZE)
-    mask = offsets < n_elements
+    offs = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offs < n_elements
 
-    x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
-    y = tl.load(y_ptr + offsets, mask=mask, other=0.0)
+    # Load inputs and upcast to fp32 for numerical stability
+    x = tl.load(input_ptr + offs, mask=mask, other=0).to(tl.float32)
+    y = tl.load(other_ptr + offs, mask=mask, other=0).to(tl.float32)
 
-    xf32 = x.to(tl.float32)
-    yf32 = y.to(tl.float32)
+    # logaddexp(x, y) = log(exp(x) + exp(y))
+    # For numerical stability, use:
+    # m = max(x, y)
+    # logaddexp(x, y) = m + log(exp(x-m) + exp(y-m))
+    # logaddexp(x, y) = m + log(1 + exp(-|x-y|))
+    m = tl.maximum(x, y)
+    diff = tl.abs(x - y)
+    res = m + tl.log(1.0 + tl.exp(-diff))
 
-    delta = xf32 - yf32
-    adelta = tl.abs(delta)
-    m = tl.maximum(xf32, yf32)
-    res = m + tl.log(1.0 + tl.exp(-adelta))
+    # Handle the cases where x == y (including +/-inf)
+    # x - y is nan if x == y == inf or x == y == -inf
+    res = tl.where(x == y, x + 0.6931471805599453, res)
 
-    out_ty = out_ptr.dtype.element_ty
-    tl.store(out_ptr + offsets, res.to(out_ty), mask=mask)
-
-
-def _ensure_cuda_tensor(obj, device, dtype):
-    if torch.is_tensor(obj):
-        return obj.to(device=device, dtype=dtype)
-    else:
-        return torch.tensor(obj, device=device, dtype=dtype)
+    tl.store(out_ptr + offs, res.to(OUT_DTYPE), mask=mask)
 
 
-def _common_float_dtype(x: torch.Tensor, y: torch.Tensor):
-    dt = torch.result_type(x, y)
-    if dt not in (torch.float16, torch.bfloat16, torch.float32, torch.float64):
-        dt = torch.get_default_dtype()
-    return dt
+def _to_triton_dtype(dtype):
+    if dtype == torch.float32:
+        return tl.float32
+    if dtype == torch.float16:
+        return tl.float16
+    if dtype == torch.bfloat16:
+        return tl.bfloat16
+    return None
 
 
-def _launch_logaddexp_kernel(x: torch.Tensor, y: torch.Tensor, out: torch.Tensor):
-    assert x.is_cuda and y.is_cuda and out.is_cuda, "All tensors must be on CUDA device"
-    assert (
-        x.numel() == y.numel() == out.numel()
-    ), "Input and output must have the same number of elements"
+def _broadcast_and_check(input, other):
+    if not isinstance(input, torch.Tensor):
+        input = torch.as_tensor(input)
+    if not isinstance(other, torch.Tensor):
+        other = torch.as_tensor(other)
+    return torch.broadcast_tensors(input, other)
 
-    x_flat = x.contiguous().view(-1)
-    y_flat = y.contiguous().view(-1)
-    out_flat = out.contiguous().view(-1)
 
-    n_elements = out_flat.numel()
+def _choose_out_dtype(input: torch.Tensor, other: torch.Tensor, out: torch.Tensor = None):
+    if out is not None:
+        return out.dtype
+    float_priority = [torch.float64, torch.float32, torch.bfloat16, torch.float16]
+    for dt in float_priority:
+        if input.dtype == dt or other.dtype == dt:
+            return dt
+    return torch.get_default_dtype()
+
+
+def _launch_kernel(input_c, other_c, out_c, out_dtype):
+    n_elements = out_c.numel()
+    if n_elements == 0:
+        return
     grid = lambda meta: (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
-    logaddexp_kernel[grid](x_flat, y_flat, out_flat, n_elements, BLOCK_SIZE=1024)
+    triton_dtype = _to_triton_dtype(out_dtype)
+    dtype_id = 0 if out_dtype == torch.float16 else 1 if out_dtype == torch.bfloat16 else 2
+    logaddexp_kernel[grid](
+        input_c,
+        other_c,
+        out_c,
+        n_elements,
+        OUT_DTYPE=triton_dtype,
+        DTYPE_ID=dtype_id,
+    )
 
-    # If out was non-contiguous, copy results back into original layout
-    if not out.is_contiguous():
-        out.copy_(out_flat.view_as(out))
 
+def logaddexp(input: torch.Tensor, other: torch.Tensor):
+    """
+    Logarithm of the sum of exponentiations of the inputs.
+    """
+    b_input, b_other = _broadcast_and_check(input, other)
+    if (
+        b_input.device.type != "cuda"
+        or b_other.device.type != "cuda"
+        or b_input.device != b_other.device
+        or b_input.is_complex()
+        or b_other.is_complex()
+    ):
+        return torch.ops.aten.logaddexp(b_input, b_other)
 
-def logaddexp(x, y):
-    # Determine device
-    device = None
-    if torch.is_tensor(x) and x.is_cuda:
-        device = x.device
-    if device is None and torch.is_tensor(y) and y.is_cuda:
-        device = y.device
-    if device is None:
-        raise ValueError("At least one input must be a CUDA tensor")
+    out_dtype = _choose_out_dtype(b_input, b_other)
+    if _to_triton_dtype(out_dtype) is None:
+        return torch.ops.aten.logaddexp(b_input, b_other)
+    out = torch.empty(b_input.shape, device=b_input.device, dtype=out_dtype)
 
-    # Determine dtype
-    x_t = x if torch.is_tensor(x) else torch.tensor(x)
-    y_t = y if torch.is_tensor(y) else torch.tensor(y)
-    dtype = _common_float_dtype(x_t, y_t)
-
-    # Convert to device and dtype
-    x_t = _ensure_cuda_tensor(x, device, dtype)
-    y_t = _ensure_cuda_tensor(y, device, dtype)
-
-    # Broadcast
-    xb, yb = torch.broadcast_tensors(x_t, y_t)
-
-    # Allocate output
-    out = torch.empty_like(xb, dtype=dtype, device=device)
-
-    _launch_logaddexp_kernel(xb, yb, out)
+    input_c = b_input.contiguous().view(-1)
+    other_c = b_other.contiguous().view(-1)
+    out_c = out.contiguous().view(-1)
+    _launch_kernel(input_c, other_c, out_c, out_dtype)
     return out
 
 
-def logaddexp_out(x, y, out):
-    if not torch.is_tensor(out) or not out.is_cuda:
-        raise ValueError("out must be a CUDA tensor")
+def logaddexp_out(input: torch.Tensor, other: torch.Tensor, out: torch.Tensor):
+    """
+    Logarithm of the sum of exponentiations of the inputs, with output tensor.
+    """
+    if out is None:
+        raise ValueError("out tensor must be provided for logaddexp_out")
 
-    # Determine computation device and dtype from out
-    device = out.device
-    out_dtype = out.dtype
-    if out_dtype not in (torch.float16, torch.bfloat16, torch.float32, torch.float64):
-        raise ValueError("out dtype must be a floating point type")
+    b_input, b_other = _broadcast_and_check(input, other)
+    if (
+        out.device.type != "cuda"
+        or b_input.device.type != "cuda"
+        or b_other.device.type != "cuda"
+        or not (b_input.device == b_other.device == out.device)
+        or b_input.is_complex()
+        or b_other.is_complex()
+        or out.is_complex()
+    ):
+        return torch.ops.aten.logaddexp.out(b_input, b_other, out=out)
+    if _to_triton_dtype(out.dtype) is None:
+        return torch.ops.aten.logaddexp.out(b_input, b_other, out=out)
 
-    # Prepare inputs
-    x_t = _ensure_cuda_tensor(x, device, out_dtype)
-    y_t = _ensure_cuda_tensor(y, device, out_dtype)
-
-    # Broadcast inputs
-    xb, yb = torch.broadcast_tensors(x_t, y_t)
-
-    # Ensure out shape matches
-    if tuple(out.shape) != tuple(xb.shape):
+    if out.shape != b_input.shape:
         raise ValueError(
-            f"out shape {tuple(out.shape)} does not match broadcasted shape {tuple(xb.shape)}"
+            f"out tensor has shape {out.shape}, expected {b_input.shape} from broadcast"
         )
 
-    _launch_logaddexp_kernel(xb, yb, out)
-    return out
+    input_c = b_input.contiguous().view(-1)
+    other_c = b_other.contiguous().view(-1)
+
+    if out.is_contiguous():
+        out_c = out.view(-1)
+        _launch_kernel(input_c, other_c, out_c, out.dtype)
+        return out
+    else:
+        tmp = torch.empty_like(out, memory_format=torch.contiguous_format)
+        out_c = tmp.view(-1)
+        _launch_kernel(input_c, other_c, out_c, out.dtype)
+        out.copy_(tmp)
+        return out
