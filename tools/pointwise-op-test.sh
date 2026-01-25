@@ -9,6 +9,7 @@ source tools/run_command.sh
 COVERAGE_ARGS="--parallel-mode --omit "*/.flaggems/*","*/usr/lib/*" --source=./src,./tests --data-file=${ID_SHA}-op"
 run_command coverage run ${COVERAGE_ARGS} -m pytest -s tests/test_pointwise_dynamic.py && \
 run_command coverage run ${COVERAGE_ARGS} -m pytest -s tests/test_unary_pointwise_ops.py && \
+run_command coverage run ${COVERAGE_ARGS} -m pytest -s tests/test_log10_ops.py && \
 run_command coverage run ${COVERAGE_ARGS} -m pytest -s tests/test_unary_pointwise_ops.py -m abs --record=log && \
 run_command coverage run ${COVERAGE_ARGS} -m pytest -s tests/test_binary_pointwise_ops.py && \
 run_command coverage run ${COVERAGE_ARGS} -m pytest -s tests/test_pointwise_type_promotion.py
