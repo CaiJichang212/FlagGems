@@ -1404,6 +1404,93 @@ def test_reshape_and_cache(
 
 
 @pytest.mark.skipif(TO_CPU, reason="Unsupported in CPU mode")
+@pytest.mark.skipif(
+    not hasattr(torch, "float8_e4m3fn"),
+    reason="float8_e4m3fn not available",
+)
+@pytest.mark.reshape_and_cache
+@pytest.mark.parametrize("num_tokens", [16])
+@pytest.mark.parametrize("num_heads", [8])
+@pytest.mark.parametrize("head_size", [64])
+@pytest.mark.parametrize("block_size", [16])
+@pytest.mark.parametrize("num_blocks", [128])
+@pytest.mark.parametrize("dtype", [torch.half])
+@pytest.mark.parametrize("kv_cache_dtype", ["fp8"])
+@pytest.mark.parametrize("seed", [2025])
+@torch.inference_mode()
+def test_reshape_and_cache_fp8(
+    num_tokens: int,
+    num_heads: int,
+    head_size: int,
+    block_size: int,
+    num_blocks: int,
+    dtype: torch.dtype,
+    kv_cache_dtype: str,
+    seed: int,
+) -> None:
+    init_seed(seed)
+    with torch.device(device):
+        # Create a random slot mapping.
+        num_slots = block_size * num_blocks
+        slot_mapping_lst = random.sample(range(num_slots), num_tokens)
+        slot_mapping = torch.tensor(slot_mapping_lst, dtype=torch.long, device=device)
+
+        qkv = torch.randn(
+            num_tokens, 3, num_heads, head_size, dtype=dtype, device=device
+        )
+        _, key, value = qkv.unbind(dim=1)
+
+        # Create FP8 KV caches (uint8 storage).
+        x = 16 // torch.tensor([], dtype=dtype).element_size()
+        key_cache_shape = (num_blocks, num_heads, head_size // x, block_size, x)
+        value_cache_shape = (num_blocks, num_heads, head_size, block_size)
+        key_cache = torch.randint(
+            0, 256, key_cache_shape, dtype=torch.uint8, device=device
+        )
+        value_cache = torch.randint(
+            0, 256, value_cache_shape, dtype=torch.uint8, device=device
+        )
+
+        k_scale = (key.amax() / 64.0).to(torch.float32)
+        v_scale = (value.amax() / 64.0).to(torch.float32)
+
+        # Clone the KV caches.
+        cloned_key_cache = key_cache.clone()
+        cloned_value_cache = value_cache.clone()
+
+        # Call the reshape_and_cache kernel.
+        flag_gems.reshape_and_cache(
+            key,
+            value,
+            key_cache,
+            value_cache,
+            slot_mapping,
+            kv_cache_dtype,
+            k_scale,
+            v_scale,
+        )
+
+        # Run the reference implementation (FP8 quantization into uint8 cache).
+        reshaped_key = key.reshape(num_tokens, *key_cache[0, :, :, 0, :].shape)
+        block_indicies = torch.div(slot_mapping, block_size, rounding_mode="floor")
+        block_indicies_lst = block_indicies.cpu().tolist()
+        block_offsets = slot_mapping % block_size
+        block_offsets_lst = block_offsets.cpu().tolist()
+        for i in range(num_tokens):
+            block_idx = block_indicies_lst[i]
+            block_offset = block_offsets_lst[i]
+            ref_key = (reshaped_key[i] / k_scale).to(torch.float8_e4m3fn).view(
+                torch.uint8
+            )
+            ref_value = (value[i] / v_scale).to(torch.float8_e4m3fn).view(torch.uint8)
+            cloned_key_cache[block_idx, :, :, block_offset, :] = ref_key
+            cloned_value_cache[block_idx, :, :, block_offset] = ref_value
+
+        torch.testing.assert_close(key_cache.cpu(), cloned_key_cache.cpu())
+        torch.testing.assert_close(value_cache.cpu(), cloned_value_cache.cpu())
+
+
+@pytest.mark.skipif(TO_CPU, reason="Unsupported in CPU mode")
 @pytest.mark.skipif(triton.__version__ < "3.1", reason="Low Triton Version")
 @pytest.mark.skipif(flag_gems.vendor_name == "hygon", reason="RuntimeError")
 @pytest.mark.skipif(flag_gems.vendor_name == "mthreads", reason="Low Triton Version")
@@ -1546,6 +1633,94 @@ def test_reshape_and_cache_flash(
             block_offset = block_offsets_lst[i]
             cloned_key_cache[block_idx, block_offset, :, :] = key[i]
             cloned_value_cache[block_idx, block_offset, :, :] = value[i]
+
+        torch.testing.assert_close(key_cache.cpu(), cloned_key_cache.cpu())
+        torch.testing.assert_close(value_cache.cpu(), cloned_value_cache.cpu())
+
+
+@pytest.mark.skipif(TO_CPU, reason="Unsupported in CPU mode")
+@pytest.mark.skipif(
+    not hasattr(torch, "float8_e4m3fn"),
+    reason="float8_e4m3fn not available",
+)
+@pytest.mark.reshape_and_cache_flash
+@pytest.mark.parametrize("num_tokens", [16])
+@pytest.mark.parametrize("num_heads", [8])
+@pytest.mark.parametrize("head_size", [64])
+@pytest.mark.parametrize("block_size", [16])
+@pytest.mark.parametrize("num_blocks", [128])
+@pytest.mark.parametrize("dtype", [torch.half])
+@pytest.mark.parametrize("kv_cache_dtype", ["fp8"])
+@pytest.mark.parametrize("seed", [2025])
+@torch.inference_mode()
+def test_reshape_and_cache_flash_fp8(
+    num_tokens: int,
+    num_heads: int,
+    head_size: int,
+    block_size: int,
+    num_blocks: int,
+    dtype: torch.dtype,
+    kv_cache_dtype: str,
+    seed: int,
+) -> None:
+    init_seed(seed)
+    with torch.device(device):
+        # Create a random slot mapping.
+        num_slots = block_size * num_blocks
+        slot_mapping_lst = random.sample(range(num_slots), num_tokens)
+        slot_mapping = torch.tensor(slot_mapping_lst, dtype=torch.long, device=device)
+        qkv = torch.randn(
+            num_tokens, 3, num_heads, head_size, dtype=dtype, device=device
+        )
+        _, key, value = qkv.unbind(dim=1)
+
+        # Create FP8 KV caches (uint8 storage).
+        key_cache = torch.randint(
+            0,
+            256,
+            (num_blocks, block_size, num_heads, head_size),
+            dtype=torch.uint8,
+            device=device,
+        )
+        value_cache = torch.randint(
+            0,
+            256,
+            (num_blocks, block_size, num_heads, head_size),
+            dtype=torch.uint8,
+            device=device,
+        )
+
+        k_scale = (key.amax() / 64.0).to(torch.float32)
+        v_scale = (value.amax() / 64.0).to(torch.float32)
+
+        # Clone the KV caches.
+        cloned_key_cache = key_cache.clone()
+        cloned_value_cache = value_cache.clone()
+
+        # Call the reshape_and_cache kernel.
+        flag_gems.reshape_and_cache_flash(
+            key,
+            value,
+            key_cache,
+            value_cache,
+            slot_mapping,
+            kv_cache_dtype,
+            k_scale,
+            v_scale,
+        )
+
+        # Run the reference implementation (FP8 quantization into uint8 cache).
+        block_indicies = torch.div(slot_mapping, block_size, rounding_mode="floor")
+        block_indicies_lst = block_indicies.cpu().tolist()
+        block_offsets = slot_mapping % block_size
+        block_offsets_lst = block_offsets.cpu().tolist()
+        for i in range(num_tokens):
+            block_idx = block_indicies_lst[i]
+            block_offset = block_offsets_lst[i]
+            ref_key = (key[i] / k_scale).to(torch.float8_e4m3fn).view(torch.uint8)
+            ref_value = (value[i] / v_scale).to(torch.float8_e4m3fn).view(torch.uint8)
+            cloned_key_cache[block_idx, block_offset, :, :] = ref_key
+            cloned_value_cache[block_idx, block_offset, :, :] = ref_value
 
         torch.testing.assert_close(key_cache.cpu(), cloned_key_cache.cpu())
         torch.testing.assert_close(value_cache.cpu(), cloned_value_cache.cpu())
