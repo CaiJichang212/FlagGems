@@ -22,6 +22,7 @@ from .accuracy_utils import (
     SWIGLU_SPECIAL_SHAPES,
     SkipVersion,
     gems_assert_close,
+    gems_assert_close_competition,
     gems_assert_equal,
     to_reference,
     unsqueeze_tensor,
@@ -1216,6 +1217,221 @@ def test_accuracy_log(shape, dtype):
         res_out = torch.log(inp)
 
     gems_assert_close(res_out, ref_out, dtype)
+
+
+@pytest.mark.log10
+@pytest.mark.parametrize("shape", POINTWISE_SHAPES)
+@pytest.mark.parametrize("dtype", FLOAT_DTYPES)
+def test_accuracy_log10(shape, dtype):
+    inp = torch.rand(shape, dtype=dtype, device=flag_gems.device)
+    ref_inp = to_reference(inp, True)
+
+    ref_out = torch.log10(ref_inp)
+    with flag_gems.use_gems():
+        res_out = torch.log10(inp)
+
+    gems_assert_close_competition(res_out, ref_out, dtype)
+
+
+@pytest.mark.log10
+@pytest.mark.parametrize(
+    "shape",
+    [
+        (8, 8),
+        (64, 64),
+        (256, 256),
+        (4096, 4096),
+    ],
+)
+@pytest.mark.parametrize("dtype", [torch.float16, torch.float32])
+def test_accuracy_log10_required_scales(shape, dtype):
+    inp = torch.rand(shape, dtype=dtype, device=flag_gems.device)
+    ref_inp = to_reference(inp, True)
+
+    ref_out = torch.log10(ref_inp)
+    with flag_gems.use_gems():
+        res_out = torch.log10(inp)
+
+    gems_assert_close_competition(res_out, ref_out, dtype)
+
+
+@pytest.mark.inplace
+@pytest.mark.log10_
+@pytest.mark.parametrize("shape", POINTWISE_SHAPES)
+@pytest.mark.parametrize("dtype", FLOAT_DTYPES)
+def test_accuracy_log10_(shape, dtype):
+    inp = torch.rand(shape, dtype=dtype, device=flag_gems.device)
+    ref_inp = to_reference(inp.clone(), True)
+
+    ref_out = torch.log10_(ref_inp)
+    with flag_gems.use_gems():
+        res_out = torch.log10_(inp)
+
+    gems_assert_close_competition(res_out, ref_out, dtype)
+
+
+@pytest.mark.log10
+@pytest.mark.parametrize("shape", POINTWISE_SHAPES)
+@pytest.mark.parametrize("dtype", FLOAT_DTYPES)
+def test_accuracy_log10_out(shape, dtype):
+    inp = torch.rand(shape, dtype=dtype, device=flag_gems.device)
+    ref_inp = to_reference(inp, True)
+
+    ref_out = torch.empty_like(ref_inp)
+    torch.log10(ref_inp, out=ref_out)
+    with flag_gems.use_gems():
+        res_out = torch.empty_like(inp)
+        torch.log10(inp, out=res_out)
+
+    gems_assert_close_competition(res_out, ref_out, dtype)
+
+
+@pytest.mark.log10
+@pytest.mark.parametrize("dtype", FLOAT_DTYPES)
+def test_accuracy_log10_special_values(dtype):
+    inp = torch.tensor(
+        [-100.0, -1.0, -0.0, 0.0, 1.0, 10.0, float("inf"), float("nan")],
+        dtype=dtype,
+        device=flag_gems.device,
+    )
+    ref_inp = to_reference(inp, True)
+
+    ref_out = torch.log10(ref_inp)
+    with flag_gems.use_gems():
+        res_out = torch.log10(inp)
+
+    gems_assert_close_competition(res_out, ref_out, dtype, equal_nan=True)
+
+
+@pytest.mark.log10
+@pytest.mark.parametrize("dtype", FLOAT_DTYPES)
+def test_accuracy_log10_empty_tensor(dtype):
+    inp = torch.rand((0, 16), dtype=dtype, device=flag_gems.device)
+    ref_inp = to_reference(inp, True)
+
+    ref_out = torch.log10(ref_inp)
+    with flag_gems.use_gems():
+        res_out = torch.log10(inp)
+
+    gems_assert_close_competition(res_out, ref_out, dtype)
+
+
+@pytest.mark.log10
+@pytest.mark.parametrize("dtype", FLOAT_DTYPES)
+def test_accuracy_log10_noncontiguous(dtype):
+    base = torch.rand((128, 64), dtype=dtype, device=flag_gems.device)
+    inp = base[:, ::2]
+    assert not inp.is_contiguous()
+    ref_inp = to_reference(inp, True)
+
+    ref_out = torch.log10(ref_inp)
+    with flag_gems.use_gems():
+        res_out = torch.log10(inp)
+
+    gems_assert_close_competition(res_out, ref_out, dtype)
+
+
+@pytest.mark.inplace
+@pytest.mark.log10_
+@pytest.mark.parametrize("dtype", FLOAT_DTYPES)
+def test_accuracy_log10_inplace_noncontiguous(dtype):
+    base = torch.rand((128, 64), dtype=dtype, device=flag_gems.device)
+    inp = base[:, ::2]
+    assert not inp.is_contiguous()
+    ref_inp = to_reference(inp.clone(), True)
+
+    ref_out = torch.log10_(ref_inp)
+    with flag_gems.use_gems():
+        res_out = torch.log10_(inp)
+
+    gems_assert_close_competition(res_out, ref_out, dtype)
+
+
+@pytest.mark.log10
+@pytest.mark.parametrize("dtype", FLOAT_DTYPES)
+def test_accuracy_log10_out_noncontiguous(dtype):
+    base_inp = torch.rand((128, 64), dtype=dtype, device=flag_gems.device)
+    inp = base_inp[:, ::2]
+    base_out = torch.empty((128, 64), dtype=dtype, device=flag_gems.device)
+    out = base_out[:, ::2]
+    assert not inp.is_contiguous()
+    assert not out.is_contiguous()
+    ref_inp = to_reference(inp, True)
+    ref_out = to_reference(out)
+
+    torch.log10(ref_inp, out=ref_out)
+    with flag_gems.use_gems():
+        torch.log10(inp, out=out)
+
+    gems_assert_close_competition(out, ref_out, dtype)
+
+
+@pytest.mark.log10
+def test_exception_log10_out_shape_mismatch():
+    inp = torch.rand((4, 4), dtype=torch.float32, device=flag_gems.device)
+    bad_out = torch.empty((4, 5), dtype=torch.float32, device=flag_gems.device)
+    ref_inp = to_reference(inp, True)
+    ref_bad_out = to_reference(bad_out)
+
+    with pytest.raises(Exception) as ref_err:
+        torch.log10(ref_inp, out=ref_bad_out)
+    with flag_gems.use_gems():
+        with pytest.raises(Exception) as gems_err:
+            torch.log10(inp, out=bad_out)
+
+    assert isinstance(gems_err.value, type(ref_err.value))
+    ref_msg = str(ref_err.value).lower()
+    gems_msg = str(gems_err.value).lower()
+    shared_keys = [k for k in ("shape", "size", "out", "invalid") if k in ref_msg]
+    if shared_keys:
+        assert any(k in gems_msg for k in shared_keys)
+
+
+@pytest.mark.log10
+def test_exception_log10_out_invalid_dtype():
+    inp = torch.rand((8, 8), dtype=torch.float32, device=flag_gems.device)
+    out = torch.empty((8, 8), dtype=torch.int32, device=flag_gems.device)
+    ref_inp = to_reference(inp, True)
+    ref_out = to_reference(out)
+
+    with pytest.raises(Exception) as ref_err:
+        torch.log10(ref_inp, out=ref_out)
+    with flag_gems.use_gems():
+        with pytest.raises(Exception) as gems_err:
+            torch.log10(inp, out=out)
+
+    assert isinstance(gems_err.value, type(ref_err.value))
+    ref_msg = str(ref_err.value).lower()
+    gems_msg = str(gems_err.value).lower()
+    shared_keys = [k for k in ("dtype", "type", "cast", "out", "result") if k in ref_msg]
+    if shared_keys:
+        assert any(k in gems_msg for k in shared_keys)
+
+
+@pytest.mark.log10
+def test_exception_log10_invalid_input_type():
+    with pytest.raises(Exception) as ref_err:
+        torch.log10("not a tensor")
+    with flag_gems.use_gems():
+        with pytest.raises(Exception) as gems_err:
+            torch.log10("not a tensor")
+
+    assert isinstance(gems_err.value, type(ref_err.value))
+
+
+@pytest.mark.inplace
+@pytest.mark.log10_
+def test_exception_log10_inplace_invalid_dtype():
+    inp = torch.ones((4,), dtype=torch.int32, device="cpu").to(flag_gems.device)
+    ref_inp = to_reference(inp.clone())
+
+    with pytest.raises(Exception) as ref_err:
+        torch.log10_(ref_inp)
+    with flag_gems.use_gems():
+        with pytest.raises(Exception) as gems_err:
+            torch.log10_(inp)
+
+    assert isinstance(gems_err.value, type(ref_err.value))
 
 
 @pytest.mark.to_copy
