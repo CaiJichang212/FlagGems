@@ -51,6 +51,7 @@ forward_operations = [
     ("rsqrt", torch.rsqrt, FLOAT_DTYPES),
     ("logical_not", torch.logical_not, INT_DTYPES + BOOL_DTYPES),
     ("log", torch.log, FLOAT_DTYPES),
+    ("log10", torch.log10, FLOAT_DTYPES),
     # ("triu", torch.triu, FLOAT_DTYPES),  # do not support 1d shapes
     # Dropout
     ("dropout", torch.nn.Dropout(p=0.5), FLOAT_DTYPES),
@@ -107,6 +108,7 @@ forward_inplace_operations = [
     ("erf_", torch.erf_, FLOAT_DTYPES),
     ("exp_", torch.exp_, FLOAT_DTYPES),
     ("exp2_", torch.exp2_, FLOAT_DTYPES),
+    ("log10_", torch.log10_, FLOAT_DTYPES),
     ("neg_", torch.neg_, FLOAT_DTYPES),
     ("reciprocal_", torch.reciprocal_, FLOAT_DTYPES),
     ("sqrt_", torch.sqrt_, FLOAT_DTYPES),
