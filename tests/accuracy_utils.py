@@ -204,6 +204,37 @@ STACK_DIM_LIST = [-2, -1, 0, 1]
 ARANGE_START = [0] if TO_CPU else [0, 1, 3]
 
 
+def _competition_atol_table():
+    table = {
+        torch.bool: 0.0,
+        torch.uint8: 0.0,
+        torch.int8: 0.0,
+        torch.int16: 0.0,
+        torch.int32: 0.0,
+        torch.int64: 0.0,
+        torch.float16: 1.0e-3,
+        torch.float32: 1.3e-6,
+        torch.bfloat16: 0.016,
+        torch.float64: 1.0e-7,
+        torch.complex32: 1.0e-3,
+        torch.complex64: 1.3e-6,
+    }
+
+    for name in (
+        "float8_e4m3fn",
+        "float8_e5m2",
+        "float8_e4m3fnuz",
+        "float8_e5m2fnuz",
+    ):
+        dtype = getattr(torch, name, None)
+        if dtype is not None:
+            table[dtype] = 1.0e-3
+    return table
+
+
+COMPETITION_ATOL = _competition_atol_table()
+
+
 def to_reference(inp, upcast=False):
     if inp is None:
         return None
@@ -235,6 +266,34 @@ def gems_assert_close(res, ref, dtype, equal_nan=False, reduce_dim=1, atol=1e-4)
 def gems_assert_equal(res, ref, equal_nan=False):
     res = to_cpu(res, ref)
     flag_gems.testing.assert_equal(res, ref, equal_nan=equal_nan)
+
+
+def gems_assert_close_competition(
+    res,
+    ref,
+    dtype,
+    equal_nan=False,
+    reduce_dim=1,
+    bitwise_exact=False,
+):
+    res = to_cpu(res, ref)
+    if dtype is None:
+        dtype = torch.float32
+    assert res.dtype == dtype
+    ref = ref.to(dtype)
+
+    if bitwise_exact:
+        atol = 0.0
+        rtol = 0.0
+    else:
+        if dtype not in COMPETITION_ATOL:
+            raise KeyError(f"dtype {dtype} is not in competition atol table")
+        atol = COMPETITION_ATOL[dtype]
+        rtol = 1.0e-4
+
+    torch.testing.assert_close(
+        res, ref, atol=atol * reduce_dim, rtol=rtol, equal_nan=equal_nan
+    )
 
 
 def unsqueeze_tuple(t, max_len):
