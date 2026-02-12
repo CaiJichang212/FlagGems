@@ -1373,18 +1373,32 @@ def test_exception_log10_out_shape_mismatch():
     ref_inp = to_reference(inp, True)
     ref_bad_out = to_reference(bad_out)
 
-    with pytest.raises(Exception) as ref_err:
+    ref_err = None
+    try:
         torch.log10(ref_inp, out=ref_bad_out)
-    with flag_gems.use_gems():
-        with pytest.raises(Exception) as gems_err:
-            torch.log10(inp, out=bad_out)
+    except Exception as err:
+        ref_err = err
 
-    assert isinstance(gems_err.value, type(ref_err.value))
-    ref_msg = str(ref_err.value).lower()
-    gems_msg = str(gems_err.value).lower()
-    shared_keys = [k for k in ("shape", "size", "out", "invalid") if k in ref_msg]
-    if shared_keys:
-        assert any(k in gems_msg for k in shared_keys)
+    gems_err = None
+    with flag_gems.use_gems():
+        try:
+            torch.log10(inp, out=bad_out)
+        except Exception as err:
+            gems_err = err
+
+    if ref_err is not None:
+        assert gems_err is not None
+        assert isinstance(gems_err, type(ref_err))
+        ref_msg = str(ref_err).lower()
+        gems_msg = str(gems_err).lower()
+        shared_keys = [k for k in ("shape", "size", "out", "invalid") if k in ref_msg]
+        if shared_keys:
+            assert any(k in gems_msg for k in shared_keys)
+    else:
+        assert gems_err is None
+        assert list(ref_bad_out.shape) == list(ref_inp.shape)
+        assert list(bad_out.shape) == list(inp.shape)
+        gems_assert_close_competition(bad_out, ref_bad_out, inp.dtype)
 
 
 @pytest.mark.log10
