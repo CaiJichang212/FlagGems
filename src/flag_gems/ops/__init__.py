@@ -202,6 +202,7 @@ from flag_gems.ops.softmax import softmax, softmax_backward
 from flag_gems.ops.softplus import softplus
 from flag_gems.ops.sort import sort, sort_stable
 from flag_gems.ops.sqrt import sqrt, sqrt_
+from flag_gems.ops.svd import svd
 from flag_gems.ops.stack import stack
 from flag_gems.ops.std import std
 from flag_gems.ops.sub import sub, sub_
@@ -465,6 +466,7 @@ __all__ = [
     "rms_norm_backward",
     "sqrt",
     "sqrt_",
+    "svd",
     "rsqrt",
     "rsqrt_",
     "scaled_dot_product_attention",
