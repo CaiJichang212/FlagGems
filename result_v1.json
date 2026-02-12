@@ -1,0 +1,1438 @@
+{
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype0-shape0]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype0-shape1]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype0-shape2]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype0-shape3]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype0-shape4]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype0-shape5]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype0-shape6]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                512,
+                512
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype0-shape7]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                1024,
+                1024
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype1-shape0]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype1-shape1]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype1-shape2]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype1-shape3]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype1-shape4]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype1-shape5]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype1-shape6]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                512,
+                512
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype1-shape7]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                1024,
+                1024
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype2-shape0]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype2-shape1]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype2-shape2]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype2-shape3]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype2-shape4]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype2-shape5]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype2-shape6]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                512,
+                512
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[True-dtype2-shape7]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                1024,
+                1024
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype0-shape0]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype0-shape1]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype0-shape2]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype0-shape3]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype0-shape4]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype0-shape5]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype0-shape6]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                512,
+                512
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype0-shape7]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                1024,
+                1024
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype1-shape0]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype1-shape1]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype1-shape2]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype1-shape3]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype1-shape4]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype1-shape5]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype1-shape6]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                512,
+                512
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype1-shape7]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                1024,
+                1024
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype2-shape0]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype2-shape1]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype2-shape2]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype2-shape3]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype2-shape4]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype2-shape5]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype2-shape6]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                512,
+                512
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_basic[False-dtype2-shape7]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                1024,
+                1024
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype0-shape0]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                2,
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype0-shape1]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                4,
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype0-shape2]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                8,
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype0-shape3]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                16,
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype0-shape4]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                8,
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype0-shape5]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float16",
+            "shape": [
+                4,
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype1-shape0]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                2,
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype1-shape1]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                4,
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype1-shape2]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                8,
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype1-shape3]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                16,
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype1-shape4]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                8,
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype1-shape5]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.float32",
+            "shape": [
+                4,
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype2-shape0]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                2,
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype2-shape1]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                4,
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype2-shape2]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                8,
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype2-shape3]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                16,
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype2-shape4]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                8,
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[True-dtype2-shape5]": {
+        "params": {
+            "some": true,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                4,
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype0-shape0]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                2,
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype0-shape1]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                4,
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype0-shape2]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                8,
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype0-shape3]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                16,
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype0-shape4]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                8,
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype0-shape5]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float16",
+            "shape": [
+                4,
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype1-shape0]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                2,
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype1-shape1]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                4,
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype1-shape2]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                8,
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype1-shape3]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                16,
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype1-shape4]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                8,
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype1-shape5]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.float32",
+            "shape": [
+                4,
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype2-shape0]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                2,
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype2-shape1]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                4,
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype2-shape2]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                8,
+                32,
+                16
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype2-shape3]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                16,
+                64,
+                64
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype2-shape4]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                8,
+                128,
+                256
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_batch[False-dtype2-shape5]": {
+        "params": {
+            "some": false,
+            "dtype": "torch.bfloat16",
+            "shape": [
+                4,
+                256,
+                128
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_no_uv[dtype0-shape0]": {
+        "params": {
+            "dtype": "torch.float16",
+            "shape": [
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_no_uv[dtype0-shape1]": {
+        "params": {
+            "dtype": "torch.float16",
+            "shape": [
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_no_uv[dtype1-shape0]": {
+        "params": {
+            "dtype": "torch.float32",
+            "shape": [
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_no_uv[dtype1-shape1]": {
+        "params": {
+            "dtype": "torch.float32",
+            "shape": [
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_no_uv[dtype2-shape0]": {
+        "params": {
+            "dtype": "torch.bfloat16",
+            "shape": [
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_no_uv[dtype2-shape1]": {
+        "params": {
+            "dtype": "torch.bfloat16",
+            "shape": [
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_singular_values_order[dtype0-shape0]": {
+        "params": {
+            "dtype": "torch.float32",
+            "shape": [
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_singular_values_order[dtype0-shape1]": {
+        "params": {
+            "dtype": "torch.float32",
+            "shape": [
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_orthogonality[dtype0-shape0]": {
+        "params": {
+            "dtype": "torch.float32",
+            "shape": [
+                8,
+                8
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    },
+    "tests/test_svd_ops.py::test_accuracy_svd_orthogonality[dtype0-shape1]": {
+        "params": {
+            "dtype": "torch.float32",
+            "shape": [
+                16,
+                32
+            ]
+        },
+        "result": "passed",
+        "opname": [
+            "svd"
+        ],
+        "skipped_reason": null
+    }
+}
