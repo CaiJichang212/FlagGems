@@ -313,6 +313,7 @@ _FULL_CONFIG = (
     ("sort.stable", sort_stable),
     ("sqrt", sqrt),
     ("sqrt_", sqrt_),
+    ("svd", svd),
     ("stack", stack),
     ("std.correction", std),
     ("sub.Tensor", sub),
