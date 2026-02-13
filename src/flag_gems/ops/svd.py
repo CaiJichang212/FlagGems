@@ -2,101 +2,8 @@ import logging
 from typing import Tuple
 
 import torch
-import triton
-import triton.language as tl
-
-from flag_gems.runtime import torch_device_fn
-from flag_gems.utils import libentry
-from flag_gems.utils import triton_lang_extension as tle
 
 logger = logging.getLogger(__name__)
-
-
-@libentry()
-@triton.jit
-def jacobi_svd_kernel(
-    A,
-    U,
-    S,
-    V,
-    M,
-    N,
-    stride_am,
-    stride_an,
-    stride_um,
-    stride_un,
-    stride_sn,
-    stride_vm,
-    stride_vn,
-    MAX_ITER: tl.constexpr,
-    BLOCK_M: tl.constexpr,
-    BLOCK_N: tl.constexpr,
-):
-    batch_idx = tle.program_id(0)
-    
-    A_ptr = A + batch_idx * M * N
-    U_ptr = U + batch_idx * M * M
-    S_ptr = S + batch_idx * N
-    V_ptr = V + batch_idx * N * N
-    
-    for iter in range(MAX_ITER):
-        for i in range(min(M, N)):
-            for j in range(i + 1, min(M, N)):
-                pass
-    
-    for i in range(min(M, N)):
-        tl.store(S_ptr + i, 0.0)
-
-
-def svd_jacobi(A: torch.Tensor, some: bool = True, compute_uv: bool = True) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    device = A.device
-    dtype = A.dtype
-    
-    if A.ndim == 2:
-        A = A.unsqueeze(0)
-        squeeze_output = True
-    else:
-        squeeze_output = False
-    
-    batch_size, M, N = A.shape
-    K = min(M, N)
-    
-    if compute_uv:
-        if some:
-            U = torch.empty((batch_size, M, K), device=device, dtype=dtype)
-            V = torch.empty((batch_size, N, K), device=device, dtype=dtype)
-        else:
-            U = torch.empty((batch_size, M, M), device=device, dtype=dtype)
-            V = torch.empty((batch_size, N, N), device=device, dtype=dtype)
-    else:
-        U = torch.empty((batch_size, M, M if not some else K), device=device, dtype=dtype)
-        V = torch.empty((batch_size, N, N if not some else K), device=device, dtype=dtype)
-    
-    S = torch.empty((batch_size, K), device=device, dtype=dtype)
-    
-    if compute_uv:
-        for b in range(batch_size):
-            u, s, v = torch.linalg.svd(A[b], full_matrices=not some)
-            if some:
-                U[b] = u
-                V[b] = v.mH
-            else:
-                U[b] = u
-                V[b] = v.mH
-            S[b] = s
-    else:
-        for b in range(batch_size):
-            s = torch.linalg.svdvals(A[b])
-            S[b] = s
-            U[b].zero_()
-            V[b].zero_()
-    
-    if squeeze_output:
-        U = U.squeeze(0)
-        S = S.squeeze(0)
-        V = V.squeeze(0)
-    
-    return U, S, V
 
 
 def svd(
@@ -104,6 +11,22 @@ def svd(
     some: bool = True,
     compute_uv: bool = True,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    计算矩阵的奇异值分解
+    
+    当前实现使用PyTorch的linalg.svd作为底层实现，确保功能正确性和数值稳定性。
+    未来可以基于Triton实现高性能的Jacobi SVD内核。
+    
+    参数:
+        A: 输入张量，形状为(*, m, n)
+        some: 是否返回简化SVD (True: U和V包含min(m,n)列, False: 完整SVD)
+        compute_uv: 是否计算U和V矩阵
+    
+    返回:
+        U: 左奇异向量矩阵
+        S: 奇异值向量（按降序排列）
+        V: 右奇异向量矩阵
+    """
     logger.debug("GEMS SVD")
     
     input_dtype = A.dtype
