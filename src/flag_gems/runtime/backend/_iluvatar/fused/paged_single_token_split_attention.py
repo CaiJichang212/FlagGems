@@ -18,14 +18,14 @@ import triton.language as tl
 def _paged_single_token_split(
     Q, K, V, QS, SL, BT, A, M, L,
     scale,
-    q0: tl.int64, q1: tl.int64, q2: tl.int64,
-    k0: tl.int64, k1: tl.int64, k2: tl.int64, k3: tl.int64,
-    v0: tl.int64, v1: tl.int64, v2: tl.int64, v3: tl.int64,
-    bt0: tl.int64, bt1: tl.int64,
-    qs0: tl.int64, sl0: tl.int64,
-    a0: tl.int64, a1: tl.int64, a2: tl.int64, a3: tl.int64,
-    m0: tl.int64, m1: tl.int64, m2: tl.int64,
-    l0: tl.int64, l1: tl.int64, l2: tl.int64,
+    q0: tl.constexpr, q1: tl.constexpr, q2: tl.constexpr,
+    k0: tl.constexpr, k1: tl.constexpr, k2: tl.constexpr, k3: tl.constexpr,
+    v0: tl.constexpr, v1: tl.constexpr, v2: tl.constexpr, v3: tl.constexpr,
+    bt0: tl.constexpr, bt1: tl.constexpr,
+    qs0: tl.constexpr, sl0: tl.constexpr,
+    a0: tl.constexpr, a1: tl.constexpr, a2: tl.constexpr, a3: tl.constexpr,
+    m0: tl.constexpr, m1: tl.constexpr, m2: tl.constexpr,
+    l0: tl.constexpr, l1: tl.constexpr, l2: tl.constexpr,
     PAGE: tl.constexpr, Q_CAPACITY: tl.constexpr,
     SPLITS: tl.constexpr, TILE: tl.constexpr,
 ):
@@ -95,11 +95,11 @@ def _paged_single_token_split(
 @triton.jit
 def _paged_single_token_merge(
     O, QS, A, M, L,
-    qs0: tl.int64,
-    o0: tl.int64, o1: tl.int64, o2: tl.int64,
-    a0: tl.int64, a1: tl.int64, a2: tl.int64, a3: tl.int64,
-    m0: tl.int64, m1: tl.int64, m2: tl.int64,
-    l0: tl.int64, l1: tl.int64, l2: tl.int64,
+    qs0: tl.constexpr,
+    o0: tl.constexpr, o1: tl.constexpr, o2: tl.constexpr,
+    a0: tl.constexpr, a1: tl.constexpr, a2: tl.constexpr, a3: tl.constexpr,
+    m0: tl.constexpr, m1: tl.constexpr, m2: tl.constexpr,
+    l0: tl.constexpr, l1: tl.constexpr, l2: tl.constexpr,
     Q_CAPACITY: tl.constexpr, SPLITS: tl.constexpr,
 ):
     request = tl.program_id(0)
