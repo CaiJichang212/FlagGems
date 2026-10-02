@@ -78,10 +78,14 @@ def _paged_single_token_split(
         values = tl.load(V + physical[:, None] * v0 + slot[:, None] * v1
                          + kv_head * v2 + dims[None, :] * v3,
                          mask=valid[:, None], other=0.0)
-        # Match the existing BF16 tensor-core probability operand while keeping
-        # maxima, denominator, rescaling and accumulated output in FP32.
+        # Preserve the FP32 probability more accurately with two BF16 operands.
+        # A single BF16 P cast can fail the independent FP32 numerical gate,
+        # including shapes where the original kernel also exceeds tolerance.
+        probability_hi = probabilities.to(tl.bfloat16)
+        probability_lo = (probabilities - probability_hi.to(tl.float32)).to(tl.bfloat16)
         accumulator = accumulator * correction[:, None]
-        accumulator += tl.dot(probabilities.to(tl.bfloat16), values, allow_tf32=False)
+        accumulator += tl.dot(probability_hi, values, allow_tf32=False)
+        accumulator += tl.dot(probability_lo, values, allow_tf32=False)
         maximum = next_maximum
     tl.store(acc_ptr, accumulator, mask=real_heads[:, None])
     tl.store(max_ptr, maximum, mask=real_heads)
