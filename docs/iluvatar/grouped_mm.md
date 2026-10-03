@@ -1,7 +1,12 @@
 # Experimental BI-V150 grouped GEMM
 
-The default whitelist is empty. Original `mm_kernel` source and autotune cache
-identity are preserved. No candidate is enabled without an explicit opt-in.
+The default whitelist is empty. No candidate is enabled without an explicit
+opt-in. Both the baseline and candidate use explicit masked loads for sub-16
+output dimensions or input addresses/row pitches not aligned to 128 bytes.
+This avoids the BI-V150 unmasked SME-load lowering that failed the original
+small-M and padded-input correctness cases. No contiguous copy or tolerance
+change is used. The repair changes the baseline JIT cache identity, so compare
+optimization results with a freshly measured repaired baseline.
 
 For a frozen model experiment, set `FLAGGEMS_ILUVATAR_MM_CONFIG` **before starting
 Python** to a JSON object, for example:

@@ -49,6 +49,26 @@ def _to_tl_type(ty):
     return getattr(tl, str(ty).split(".")[-1])
 
 
+def _requires_masked_load(a, b, M, N):
+    """Keep unsupported SME transfers on explicit elementwise masked loads.
+
+    BI-V150's unmasked dot-load lowering is unsafe for sub-16 output tiles
+    with pipelining, and for input base/pitch not aligned to 128 bytes. Check
+    the actual tensors rather than logical shapes: views may have padding or
+    nonzero storage offsets. A mask also keeps these layouts out of that
+    lowering without allocating a contiguous copy.
+    """
+    if M < 16 or N < 16:
+        return True
+    for tensor in (a, b):
+        if tensor.data_ptr() % 128:
+            return True
+        strides = tensor.stride()
+        if 1 not in strides or max(strides) * tensor.element_size() % 128:
+            return True
+    return False
+
+
 @libentry()
 @libtuner(
     configs=runtime.get_tuned_config("mm"),
@@ -104,6 +124,7 @@ def mm_kernel(
     UPGRADE_A_OFFS: tl.constexpr,
     UPGRADE_B_OFFS: tl.constexpr,
     UPGRADE_C_OFFS: tl.constexpr,
+    MASKED_LOAD: tl.constexpr,
 ):
     # matrix multiplication
     if UPGRADE:
@@ -142,8 +163,15 @@ def mm_kernel(
     acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=acc_dtype)
     if EVEN_K:
         for k in range(0, tl.cdiv(K, BLOCK_K * SPLIT_K)):
-            a = tl.load(A)
-            b = tl.load(B)
+            if MASKED_LOAD:
+                # Keep both dimensions in the predicate. The modulo indices
+                # preserve the existing tail semantics; explicit masks avoid
+                # unsafe SME dot-load lowering for small/unaligned layouts.
+                a = tl.load(A, mask=(ram[:, None] < M) & (rk[None, :] < K), other=0)
+                b = tl.load(B, mask=(rk[:, None] < K) & (rbn[None, :] < N), other=0)
+            else:
+                a = tl.load(A)
+                b = tl.load(B)
             if AB_DTYPE is not None:
                 a = a.to(AB_DTYPE)
                 b = b.to(AB_DTYPE)
@@ -160,8 +188,15 @@ def mm_kernel(
     else:
         loop_num = tl.cdiv(K, BLOCK_K * SPLIT_K) - 1
         for k in range(0, loop_num):
-            a = tl.load(A)
-            b = tl.load(B)
+            if MASKED_LOAD:
+                # Keep both dimensions in the predicate. The modulo indices
+                # preserve the existing tail semantics; explicit masks avoid
+                # unsafe SME dot-load lowering for small/unaligned layouts.
+                a = tl.load(A, mask=(ram[:, None] < M) & (rk[None, :] < K), other=0)
+                b = tl.load(B, mask=(rk[:, None] < K) & (rbn[None, :] < N), other=0)
+            else:
+                a = tl.load(A)
+                b = tl.load(B)
             if AB_DTYPE is not None:
                 a = a.to(AB_DTYPE)
                 b = b.to(AB_DTYPE)
@@ -205,7 +240,7 @@ def mm_kernel(
         tl.atomic_add(C, acc, mask=mask)
 
 
-# Independent candidate keeps the baseline JIT source and tuning cache intact.
+# Independent candidate keeps fixed configuration experiments out of the tuner.
 @triton.jit
 def grouped_mm_kernel(
     A,
@@ -234,6 +269,7 @@ def grouped_mm_kernel(
     UPGRADE_A_OFFS: tl.constexpr,
     UPGRADE_B_OFFS: tl.constexpr,
     UPGRADE_C_OFFS: tl.constexpr,
+    MASKED_LOAD: tl.constexpr,
     GROUPED_M: tl.constexpr = False,
 ):
     # matrix multiplication
@@ -277,8 +313,15 @@ def grouped_mm_kernel(
     acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=acc_dtype)
     if EVEN_K:
         for k in range(0, tl.cdiv(K, BLOCK_K * SPLIT_K)):
-            a = tl.load(A)
-            b = tl.load(B)
+            if MASKED_LOAD:
+                # Keep both dimensions in the predicate. The modulo indices
+                # preserve the existing tail semantics; explicit masks avoid
+                # unsafe SME dot-load lowering for small/unaligned layouts.
+                a = tl.load(A, mask=(ram[:, None] < M) & (rk[None, :] < K), other=0)
+                b = tl.load(B, mask=(rk[:, None] < K) & (rbn[None, :] < N), other=0)
+            else:
+                a = tl.load(A)
+                b = tl.load(B)
             if AB_DTYPE is not None:
                 a = a.to(AB_DTYPE)
                 b = b.to(AB_DTYPE)
@@ -295,8 +338,15 @@ def grouped_mm_kernel(
     else:
         loop_num = tl.cdiv(K, BLOCK_K * SPLIT_K) - 1
         for k in range(0, loop_num):
-            a = tl.load(A)
-            b = tl.load(B)
+            if MASKED_LOAD:
+                # Keep both dimensions in the predicate. The modulo indices
+                # preserve the existing tail semantics; explicit masks avoid
+                # unsafe SME dot-load lowering for small/unaligned layouts.
+                a = tl.load(A, mask=(ram[:, None] < M) & (rk[None, :] < K), other=0)
+                b = tl.load(B, mask=(rk[:, None] < K) & (rbn[None, :] < N), other=0)
+            else:
+                a = tl.load(A)
+                b = tl.load(B)
             if AB_DTYPE is not None:
                 a = a.to(AB_DTYPE)
                 b = b.to(AB_DTYPE)
@@ -471,6 +521,7 @@ def launch_mm_fixed(
             GROUP_M=group_m,
             SPLIT_K=1,
             EVEN_K=K % block_k == 0,
+            MASKED_LOAD=_requires_masked_load(a, b, M, N),
             AB_DTYPE=tl.bfloat16,
             UPGRADE=math.ceil(M * N / (block_m * block_n)).bit_length() > 31,
             UPGRADE_A_OFFS=(M * K).bit_length() > 31,
@@ -526,6 +577,9 @@ def _launch_mm(a, b, c, M, N, K):
             fp8_fast_accum=True,
             GROUP_M=8,
             AB_DTYPE=ab_dtype_tl,
+            # Explicit constexpr is part of LibEntry's dispatch key. Pointer
+            # divisibility alone does not distinguish 16- vs 128-byte alignment.
+            MASKED_LOAD=_requires_masked_load(a, b, M, N),
         )
     return c
 
