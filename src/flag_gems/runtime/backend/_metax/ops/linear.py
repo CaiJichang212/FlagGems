@@ -13,8 +13,8 @@ import triton.language as tl
 from flag_gems.ops.linear import linear as _generic_linear
 
 # Filled only by the fixed independent confirmation, never runtime tuning.
-SELECTED_CONFIGS = {}
-ENABLED_SHAPES = ()
+SELECTED_CONFIGS = {(2048, 6144): (4, 512, 4), (12288, 2048): (4, 512, 4)}
+ENABLED_SHAPES = ((1, 2048, 6144), (1, 12288, 2048), (2, 2048, 6144), (4, 2048, 6144))
 
 
 @triton.jit
