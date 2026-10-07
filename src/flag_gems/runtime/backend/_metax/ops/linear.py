@@ -37,14 +37,26 @@ def small_m_linear_kernel(X, W, Y, M: tl.constexpr, N: tl.constexpr,
              (rows[:, None] < M) & (cols[None, :] < N))
 
 
+def dispatch_config(input, weight, bias=None):
+    # Reject prefill and unsupported ranks/shapes before dtype/device checks.
+    if bias is not None or input.ndim != 2 or weight.ndim != 2:
+        return None
+    m, k = input.shape
+    if m not in (1, 2, 4, 7):
+        return None
+    n, wk = weight.shape
+    if k != wk or (m, n, k) not in ENABLED_SHAPES:
+        return None
+    if (input.dtype != torch.bfloat16 or weight.dtype != torch.bfloat16
+            or input.device.type != "cuda" or weight.device != input.device
+            or not input.is_contiguous() or not weight.is_contiguous()
+            or input.requires_grad or weight.requires_grad):
+        return None
+    return SELECTED_CONFIGS.get((n, k))
+
+
 def eligible(input, weight, bias=None):
-    return (bias is None and input.ndim == 2 and weight.ndim == 2
-            and input.dtype == torch.bfloat16 and weight.dtype == torch.bfloat16
-            and input.device.type == "cuda" and weight.device == input.device
-            and input.is_contiguous() and weight.is_contiguous()
-            and not input.requires_grad and not weight.requires_grad
-            and input.shape[1] == weight.shape[1]
-            and (input.shape[0], *weight.shape) in ENABLED_SHAPES)
+    return dispatch_config(input, weight, bias) is not None
 
 
 def candidate_linear(input, weight, config):
@@ -60,6 +72,7 @@ def candidate_linear(input, weight, config):
 
 
 def linear(input, weight, bias=None):
-    if eligible(input, weight, bias):
-        return candidate_linear(input, weight, SELECTED_CONFIGS[tuple(weight.shape)])
+    config = dispatch_config(input, weight, bias)
+    if config is not None:
+        return candidate_linear(input, weight, config)
     return _generic_linear(input, weight, bias)
