@@ -27,6 +27,7 @@ from .isin import isin
 from .kthvalue import kthvalue
 from .layernorm import layer_norm, layer_norm_backward
 from .lgamma_ import lgamma, lgamma_
+from .linear import linear
 from .linalg_svdvals import linalg_svdvals
 from .log_sigmoid_forward import log_sigmoid_forward
 from .log_softmax import log_softmax, log_softmax_backward
@@ -110,6 +111,7 @@ __all__ = [
     "kthvalue",
     "layer_norm",
     "layer_norm_backward",
+    "linear",
     "lgamma",
     "lgamma_",
     "linalg_svdvals",
