@@ -34,7 +34,7 @@ def _cache(device):
 
 
 def _supported(x, w, bias):
-    return (bias is None and type(x) is torch.Tensor and type(w) in (torch.Tensor, torch.nn.Parameter)
+    return (bias is None and type(x) is torch.Tensor and (type(w) is torch.Tensor or isinstance(w, torch.nn.Parameter))
             and x.device.type == 'cuda' and x.device == w.device
             and x.ndim == w.ndim == 2 and x.shape[0] > 0
             and tuple(w.shape) in ((2048, 6144), (12288, 2048))
