@@ -1,6 +1,7 @@
 # Copyright 2026 FlagOS Contributors. Licensed under Apache-2.0.
 """Reuse preparation for the existing rank-two SiLU kernel on sliced decode inputs."""
 import importlib
+import enum
 import math
 import os
 import threading
@@ -50,9 +51,43 @@ def _supported(x, y):
             and x.data_ptr() % 16 == y.data_ptr() % 16 == 0)
 
 
+_FX_KEYS = frozenset(('_promotion_methods', '_num_inputs', '_is_tensor', '_dtypes',
+                      '_num_outputs', '_num_input_tensors', '_num_non_tensor_inputs', '_input_id'))
+_CS_KEYS = frozenset(('mode', 'cross_kernel', 'tensorize_scalars', 'fallback_target'))
+
+
 def _stamp(pointwise):
+    # All fields of the pinned schema are included by value. Unsupported dynamic
+    # objects force invalidation instead of retaining a mutable object reference.
+    fx, cs = vars(pointwise.fx), vars(pointwise.complex_strategy)
+    if fx.keys() != _FX_KEYS or cs.keys() != _CS_KEYS:
+        return (object(),)
+    counts = (fx['_num_inputs'], fx['_num_outputs'], fx['_num_input_tensors'], fx['_num_non_tensor_inputs'])
+    tensors, dtypes, ids, promotions = fx['_is_tensor'], fx['_dtypes'], fx['_input_id'], fx['_promotion_methods']
+    if (any(type(v) is not int for v in counts)
+            or any(type(v) is not list for v in (tensors, dtypes, ids, promotions))
+            or any(type(v) is not bool for v in tensors)
+            or any(v is not None for v in dtypes)
+            or any(type(v) is not int for v in ids)
+            or cs['cross_kernel'] is not None or cs['fallback_target'] is not None
+            or type(cs['tensorize_scalars']) is not bool):
+        return (object(),)
+    packed = []
+    for row in promotions:
+        if type(row) is not tuple or not row or any(type(v) is not int for v in row[:-1]):
+            return (object(),)
+        kind = row[-1]
+        value = getattr(kind, 'value', None)
+        if (not isinstance(kind, enum.Enum) or type(kind.name) is not str
+                or type(value) is not tuple or any(type(v) is not int for v in value)):
+            return (object(),)
+        packed.append((row[:-1], type(kind), kind.name, value))
+    mode = cs['mode']
+    if not isinstance(mode, enum.Enum) or type(mode.name) is not str or type(mode.value) is not int:
+        return (object(),)
     return (pointwise._scalar_fn, pointwise._scalar_fn_cache_key,
-            repr(vars(pointwise.fx)), repr(vars(pointwise.complex_strategy)))
+            tuple(fx), counts, tuple(tensors), tuple(dtypes), tuple(ids), tuple(packed),
+            tuple(cs), type(mode), mode.name, mode.value, None, cs['tensorize_scalars'], None)
 
 
 def _descriptor(pointwise, x, y, out):
