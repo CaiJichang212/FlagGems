@@ -33,20 +33,30 @@ def _cache(device):
     return _local.devices.setdefault(device, OrderedDict())
 
 
+def _metadata(x, w, bias):
+    if (bias is not None or type(x) is not torch.Tensor
+            or not (type(w) is torch.Tensor or isinstance(w, torch.nn.Parameter))):
+        return None
+    xd, wd = x.device, w.device
+    xs, ws = tuple(x.shape), tuple(w.shape)
+    xt, wt = x.dtype, w.dtype
+    if (xd.type != 'cuda' or xd != wd or len(xs) != 2 or len(ws) != 2
+            or xs[0] <= 0 or ws not in ((2048, 6144), (12288, 2048))
+            or xs[1] != ws[1] or xt != wt or xt != torch.bfloat16
+            or not x.is_contiguous() or not w.is_contiguous()
+            or x.requires_grad or w.requires_grad):
+        return None
+    return (xs, ws, xd, xt, x.stride(), w.stride(),
+            x.data_ptr() % 16 == 0, w.data_ptr() % 16 == 0)
+
+
 def _supported(x, w, bias):
-    return (bias is None and type(x) is torch.Tensor and (type(w) is torch.Tensor or isinstance(w, torch.nn.Parameter))
-            and x.device.type == 'cuda' and x.device == w.device
-            and x.ndim == w.ndim == 2 and x.shape[0] > 0
-            and tuple(w.shape) in ((2048, 6144), (12288, 2048))
-            and x.shape[1] == w.shape[1]
-            and x.dtype == w.dtype == torch.bfloat16
-            and x.is_contiguous() and w.is_contiguous()
-            and not x.requires_grad and not w.requires_grad)
+    return _metadata(x, w, bias) is not None
 
 
-def _args(x, w, out):
-    m, k = x.shape
-    n = w.shape[0]
+def _args(x, w, out, metadata=None):
+    m, k = x.shape if metadata is None else metadata[0]
+    n = w.shape[0] if metadata is None else metadata[1][0]
     return (x, w, w, out, m, n, k, k, 1, k, 1, n, 1, 0)
 
 
@@ -60,23 +70,23 @@ def _entry_key(entry, args):
 def linear(input, weight, bias=None):
     generic = importlib.import_module('flag_gems.ops.linear')
     entry = generic.linear_kernel
-    if (not _supported(input, weight, bias) or triton.__version__ != '3.0.0'
+    metadata = _metadata(input, weight, bias)
+    if (metadata is None or triton.__version__ != '3.0.0'
             or entry._has_flagtune_tuner):
         _count('fallback')
         return generic.linear(input, weight, bias)
-    device = input.device.index
-    signature = (entry, entry.jit_function, tuple(input.shape), tuple(weight.shape),
-                 input.dtype, input.stride(), weight.stride(),
-                 input.data_ptr() % 16 == 0, weight.data_ptr() % 16 == 0)
+    xs, ws, xd, dtype, xstride, wstride, xalign, walign = metadata
+    device = xd.index
+    signature = (entry, entry.jit_function, xs, ws, dtype, xstride, wstride, xalign, walign)
     cache = _cache(device)
     record = cache.get(signature)
     if record is not None:
         key, original, runner, tail = record
         if entry.kernel_cache[device].get(key) is original and not original[4]:
-            out = torch.empty((input.shape[0], weight.shape[0]), device=input.device, dtype=input.dtype)
+            out = torch.empty((xs[0], ws[0]), device=xd, dtype=dtype)
             # torch allocations are aligned; do not reuse a specialization otherwise.
             if out.data_ptr() % 16 == 0:
-                with torch_device_fn.device(input.device):
+                with torch_device_fn.device(xd):
                     runner(input, weight, weight, out, *tail)
                 cache.move_to_end(signature)
                 _count('hit')
@@ -85,7 +95,7 @@ def linear(input, weight, bias=None):
         _count('invalidated')
     _count('cold')
     out = generic.linear(input, weight, bias)
-    args = _args(input, weight, out)
+    args = _args(input, weight, out, metadata)
     key = _entry_key(entry, args)
     original = entry.kernel_cache[device].get(key)
     if original is None or len(original) != 5 or original[4] or out.data_ptr() % 16:
@@ -93,8 +103,8 @@ def linear(input, weight, bias=None):
         return out
     kernel, meta = original[:2]
     # The standard runner obtains the current stream and profiler hooks on EVERY call.
-    grid = (triton.cdiv(input.shape[0], meta['BLOCK_SIZE_M']),
-            triton.cdiv(weight.shape[0], meta['BLOCK_SIZE_N']), 1)
+    grid = (triton.cdiv(xs[0], meta['BLOCK_SIZE_M']),
+            triton.cdiv(ws[0], meta['BLOCK_SIZE_N']), 1)
     cache[signature] = (key, original, kernel[grid], args[4:])
     cache.move_to_end(signature)
     if len(cache) > 64:
