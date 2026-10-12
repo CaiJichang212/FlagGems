@@ -1,5 +1,5 @@
 # Copyright 2026 FlagOS Contributors. Licensed under Apache-2.0.
-"""Reuse preparation for the existing rank-two SiLU kernel on sliced decode inputs."""
+"""Reuse preparation for the existing rank-two SiLU kernel on bounded sliced inputs."""
 import importlib
 import math
 import os
@@ -45,7 +45,7 @@ def _supported(x, y):
             and torch.is_inference_mode_enabled() and not x.requires_grad and not y.requires_grad
             and x.device.type == 'cuda' and x.device == y.device
             and x.dtype == y.dtype == torch.bfloat16 and x.ndim == y.ndim == 2
-            and x.shape == y.shape and 1 <= x.shape[0] <= 7 and x.shape[1] > 0
+            and x.shape == y.shape and 1 <= x.shape[0] <= 1024 and x.shape[1] > 0
             and x.stride() == y.stride() == (2*x.shape[1], 1)
             and x.data_ptr() % 16 == y.data_ptr() % 16 == 0)
 
