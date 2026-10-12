@@ -1,5 +1,5 @@
 # Copyright 2026, The FlagOS Contributors. Licensed under Apache-2.0.
-"""Reuse generic linear launch preparation; never change its compiled kernel."""
+"""Reuse launch preparation for generic and fixed small-M dot kernels."""
 import importlib
 import os
 import threading
@@ -59,6 +59,10 @@ def _entry_key(entry, args):
 
 def linear(input, weight, bias=None):
     generic = importlib.import_module('flag_gems.ops.linear')
+    if (_supported(input, weight, bias) and 1 <= input.shape[0] <= 7
+            and tuple(weight.shape) == (2048, 6144)
+            and input.data_ptr() % 16 == 0 and weight.data_ptr() % 16 == 0):
+        generic = importlib.import_module('_metax.ops.linear_smallm_dot')
     entry = generic.linear_kernel
     if (not _supported(input, weight, bias) or triton.__version__ != '3.0.0'
             or entry._has_flagtune_tuner):
