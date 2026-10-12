@@ -20,7 +20,7 @@ import torch.nn as nn
 import flag_gems
 
 logger = logging.getLogger(__name__)
-if flag_gems.vendor_name == "metax":
+if flag_gems.runtime.device.vendor_name == "metax":
     from flag_gems.runtime.backend._metax.logging_once import debug_once as _metax_debug
 else:
     _metax_debug = None
