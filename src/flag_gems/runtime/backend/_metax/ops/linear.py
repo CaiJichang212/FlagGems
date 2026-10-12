@@ -37,8 +37,11 @@ def _metadata(x, w, bias):
     if (bias is not None or type(x) is not torch.Tensor
             or not (type(w) is torch.Tensor or isinstance(w, torch.nn.Parameter))):
         return None
+    ws = tuple(w.shape)
+    if ws not in ((2048, 6144), (12288, 2048)):
+        return None
     xd, wd = x.device, w.device
-    xs, ws = tuple(x.shape), tuple(w.shape)
+    xs = tuple(x.shape)
     xt, wt = x.dtype, w.dtype
     if (xd.type != 'cuda' or xd != wd or len(xs) != 2 or len(ws) != 2
             or xs[0] <= 0 or ws not in ((2048, 6144), (12288, 2048))
