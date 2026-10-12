@@ -69,8 +69,11 @@ def _entry_key(entry, args):
 
 def linear(input, weight, bias=None):
     generic = importlib.import_module('flag_gems.ops.linear')
-    entry = generic.linear_kernel
     metadata = _metadata(input, weight, bias)
+    if (metadata is not None and 1 <= metadata[0][0] <= 7
+            and metadata[1] == (2048, 6144) and metadata[6] and metadata[7]):
+        generic = importlib.import_module('_metax.ops.linear_smallm_dot')
+    entry = generic.linear_kernel
     if (metadata is None or triton.__version__ != '3.0.0'
             or entry._has_flagtune_tuner):
         _count('fallback')
