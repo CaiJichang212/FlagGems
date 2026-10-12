@@ -20,6 +20,10 @@ import torch.nn as nn
 import flag_gems
 
 logger = logging.getLogger(__name__)
+if flag_gems.vendor_name == "metax":
+    from flag_gems.runtime.backend._metax.logging_once import debug_once as _metax_debug
+else:
+    _metax_debug = None
 
 has_c_extension = False  # Disable C extension for now, as we have not implemented c++ wrapper for silu_and_mul yet.
 
@@ -33,7 +37,10 @@ def gems_silu_and_mul(
     x: torch.Tensor,
     y: torch.Tensor,
 ) -> torch.Tensor:
-    logger.debug("GEMS CUSTOM SILU_AND_MUL FORWARD")
+    if _metax_debug is None:
+        logger.debug("GEMS CUSTOM SILU_AND_MUL FORWARD")
+    else:
+        _metax_debug(logger, "GEMS CUSTOM SILU_AND_MUL FORWARD")
     # TODO: Implement C++ wrapper for silu_and_mul
     return flag_gems.silu_and_mul(x, y)
 
