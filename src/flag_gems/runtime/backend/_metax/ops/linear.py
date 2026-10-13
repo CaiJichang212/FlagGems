@@ -34,20 +34,17 @@ def _cache(device):
 
 
 def _metadata(x, w, bias):
-    if (bias is not None or type(x) is not torch.Tensor
-            or not (type(w) is torch.Tensor or isinstance(w, torch.nn.Parameter))):
+    if bias is not None or type(x) is not torch.Tensor or (not (type(w) is torch.Tensor or isinstance(w, torch.nn.Parameter))):
         return None
-    xd, wd = x.device, w.device
-    xs, ws = tuple(x.shape), tuple(w.shape)
-    xt, wt = x.dtype, w.dtype
-    if (xd.type != 'cuda' or xd != wd or len(xs) != 2 or len(ws) != 2
-            or xs[0] <= 0 or ws not in ((2048, 6144), (12288, 2048))
-            or xs[1] != ws[1] or xt != wt or xt != torch.bfloat16
-            or not x.is_contiguous() or not w.is_contiguous()
-            or x.requires_grad or w.requires_grad):
+    ws = tuple(w.shape)
+    if ws not in ((2048, 6144), (12288, 2048)):
         return None
-    return (xs, ws, xd, xt, x.stride(), w.stride(),
-            x.data_ptr() % 16 == 0, w.data_ptr() % 16 == 0)
+    xd, wd = (x.device, w.device)
+    xs = tuple(x.shape)
+    xt, wt = (x.dtype, w.dtype)
+    if xd.type != 'cuda' or xd != wd or len(xs) != 2 or (len(ws) != 2) or (xs[0] <= 0) or (ws not in ((2048, 6144), (12288, 2048))) or (xs[1] != ws[1]) or (xt != wt) or (xt != torch.bfloat16) or (not x.is_contiguous()) or (not w.is_contiguous()) or x.requires_grad or w.requires_grad:
+        return None
+    return (xs, ws, xd, xt, x.stride(), w.stride(), x.data_ptr() % 16 == 0, w.data_ptr() % 16 == 0)
 
 
 def _supported(x, w, bias):
