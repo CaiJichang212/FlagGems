@@ -40,14 +40,28 @@ def clear_cache():
     _cache().clear()
 
 
+def _metadata(x, y):
+    """Read each input metadata field once per supported public invocation."""
+    if (type(x) is not torch.Tensor or type(y) is not torch.Tensor
+            or not torch.is_inference_mode_enabled() or x.requires_grad or y.requires_grad):
+        return None
+    device, other_device = x.device, y.device
+    dtype, other_dtype = x.dtype, y.dtype
+    shape, other_shape = tuple(x.shape), tuple(y.shape)
+    if (device.type != 'cuda' or device != other_device
+            or dtype != torch.bfloat16 or dtype != other_dtype
+            or len(shape) != 2 or len(other_shape) != 2 or shape != other_shape
+            or not 1 <= shape[0] <= 1024 or shape[1] <= 0):
+        return None
+    xstride, ystride = x.stride(), y.stride()
+    if (xstride != ystride or xstride != (2 * shape[1], 1)
+            or x.data_ptr() % 16 != 0 or y.data_ptr() % 16 != 0):
+        return None
+    return shape, device, dtype, xstride, ystride, device.index
+
+
 def _supported(x, y):
-    return (type(x) is torch.Tensor and type(y) is torch.Tensor
-            and torch.is_inference_mode_enabled() and not x.requires_grad and not y.requires_grad
-            and x.device.type == 'cuda' and x.device == y.device
-            and x.dtype == y.dtype == torch.bfloat16 and x.ndim == y.ndim == 2
-            and x.shape == y.shape and 1 <= x.shape[0] <= 1024 and x.shape[1] > 0
-            and x.stride() == y.stride() == (2*x.shape[1], 1)
-            and x.data_ptr() % 16 == y.data_ptr() % 16 == 0)
+    return _metadata(x, y) is not None
 
 
 def _stamp(pointwise):
@@ -55,22 +69,26 @@ def _stamp(pointwise):
             repr(vars(pointwise.fx)), repr(vars(pointwise.complex_strategy)))
 
 
-def _descriptor(pointwise, x, y, out):
+def _descriptor(pointwise, x, y, out, metadata=None):
     """Recover the original generated wrapper's layout and its cached binary, without a launch."""
+    if metadata is None:
+        metadata = _metadata(x, y)
+    if metadata is None:
+        return None
+    shape, device, dtype, xstride, ystride, device_index = metadata
     overload = pointwise.instantiate(2)
     info = pointwise.get_kernel_info(2)
     namespace = overload.__globals__
     entry = namespace[info.kernel_name]
     if entry._has_flagtune_tuner or entry.fn is not entry.jit_function:
         return None
-    shape = tuple(x.shape)
     tile = namespace['heuristics_for_tile_size'](2048, *shape)
     num_tiles = math.prod(triton.cdiv(s, t) for s, t in zip(shape, tile))
     grid = (min(65536, num_tiles), 1, 1)
     tiles_per_cta = triton.cdiv(num_tiles, grid[0])
     args = [x, y, out]
-    for tensor in (x, y, out):
-        strides = tensor.stride()
+    output_stride = out.stride()
+    for strides in (xstride, ystride, output_stride):
         args.extend((*strides, *namespace['stride_order'](strides)))
     args.extend((*shape, math.prod(shape), tiles_per_cta, *tile, tiles_per_cta == 1))
     if len(args) != len(entry.jit_function.params):
@@ -79,11 +97,11 @@ def _descriptor(pointwise, x, y, out):
     dns = [v for i, v in enumerate(args) if i in entry.do_not_specialize_indices]
     const = [v for i, v in enumerate(args) if i not in entry.specialize_indices and i not in entry.do_not_specialize_indices]
     key = entry.key(spec, dns, const)
-    original = entry.kernel_cache[x.device.index].get(key)
+    original = entry.kernel_cache[device_index].get(key)
     if original is None or len(original) != 5 or original[4]:
         return None
     runtime = [v for v, param in zip(args, entry.jit_function.params) if not param.is_constexpr]
-    if len(runtime) != 7 or out.stride() != (shape[1], 1):
+    if len(runtime) != 7 or output_stride != (shape[1], 1):
         return None
     return (overload, entry, entry.jit_function, key, original, original[0][grid],
             tuple(runtime[3:]), _stamp(pointwise))
@@ -91,14 +109,16 @@ def _descriptor(pointwise, x, y, out):
 
 def silu_and_mul(A, B):
     generic = importlib.import_module('flag_gems.fused.silu_and_mul')
-    if not _supported(A, B) or triton.__version__ != '3.0.0':
+    metadata = _metadata(A, B)
+    if metadata is None or triton.__version__ != '3.0.0':
         _count('fallback')
         return generic.silu_and_mul(A, B)
     pointwise = generic.silu_and_mul_kernel
     if vars(pointwise.config) != _CONFIG:
         _count('config_fallback')
         return generic.silu_and_mul(A, B)
-    signature = (pointwise, A.device.index, tuple(A.shape), A.stride(), B.stride(), A.dtype)
+    shape, device, dtype, xstride, ystride, device_index = metadata
+    signature = (pointwise, device_index, shape, xstride, ystride, dtype)
     cache = _cache()
     record = cache.get(signature)
     if record is not None:
@@ -106,11 +126,11 @@ def silu_and_mul(A, B):
         if (pointwise.overloads.get('2_True') is overload
                 and entry.fn is jit and entry.jit_function is jit and not entry._has_flagtune_tuner
                 and overload.__globals__[pointwise.get_kernel_info(2).kernel_name] is entry
-                and entry.kernel_cache[A.device.index].get(key) is original and not original[4]
+                and entry.kernel_cache[device_index].get(key) is original and not original[4]
                 and _stamp(pointwise) == stamp):
-            out = torch.empty(A.shape, device=A.device, dtype=A.dtype)
+            out = torch.empty(shape, device=device, dtype=dtype)
             if out.data_ptr() % 16 == 0:
-                with torch_device_fn.device(A.device):
+                with torch_device_fn.device(device):
                     runner(A, B, out, *tail)
                 cache.move_to_end(signature)
                 _count('hit')
@@ -121,7 +141,7 @@ def silu_and_mul(A, B):
         return generic.silu_and_mul(A, B)
     _count('cold')
     out = generic.silu_and_mul(A, B)
-    record = _descriptor(pointwise, A, B, out)
+    record = _descriptor(pointwise, A, B, out, metadata)
     if record is not None:
         cache[signature] = record
         cache.move_to_end(signature)

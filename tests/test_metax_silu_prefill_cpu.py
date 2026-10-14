@@ -38,7 +38,7 @@ class SiluLifecycle(unittest.TestCase):
             triton=types.SimpleNamespace(__version__='3.0.0'),torch_device_fn=types.SimpleNamespace(device=lambda d:contextlib.nullcontext()),
             importlib=types.SimpleNamespace(import_module=lambda n:self.generic),os=os,threading=threading,Counter=Counter,OrderedDict=OrderedDict)
         exec(compile(tree,str(SOURCE),'exec'),self.ns)
-        def descriptor(p,x,y,out):
+        def descriptor(p,x,y,out,metadata=None):
             if self.entry._has_flagtune_tuner:return None
             def runner(*args):self.launches.append((args,self.stream))
             return (self.overload,self.entry,self.entry.jit_function,'key',self.record,runner,(4,6144,24576,1),self.ns['_stamp'](p))
