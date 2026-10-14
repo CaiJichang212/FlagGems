@@ -1,6 +1,12 @@
 # Copyright 2026 FlagOS Contributors. Licensed under Apache-2.0.
 """Experimental paired-column gate/up GEMM; public linear/SiLU stay unchanged."""
 import importlib
+import os
+import threading
+from collections import Counter, OrderedDict
+
+from triton.runtime.jit import JITFunction
+from triton import knobs
 
 import torch
 import triton
@@ -92,18 +98,145 @@ def _baseline_record(x, weight):
     return {k: meta[k] for k in required}
 
 
+# Descriptors contain launch metadata only: never tensors, pointers or streams.
+_local = threading.local()
+_diagnostics = False
+
+
+def diagnostics(enabled=True):
+    global _diagnostics
+    _diagnostics = enabled
+    return dict(getattr(_local, 'counts', {}))
+
+
+def _count(name):
+    if _diagnostics:
+        if not hasattr(_local, 'counts'):
+            _local.counts = Counter()
+        _local.counts[name] += 1
+
+
+def _cache(device):
+    pid = os.getpid()
+    if getattr(_local, 'pid', None) != pid:
+        _local.pid, _local.devices = pid, {}
+    return _local.devices.setdefault(device, OrderedDict())
+
+
+def clear_cache():
+    _local.devices = {}
+
+
+def _jit_stamp(jit):
+    # JIT.run executes these before launch; never bypass dynamic callbacks.
+    required = ('pre_run_hooks', 'used_global_vals', 'fn', 'src', 'debug',
+                'noinline', 'cache_key', 'binder', 'cache', 'run')
+    if any(not hasattr(jit, name) for name in required):
+        return None
+    run = getattr(jit.run, '__func__', None)
+    if run is None:
+        return None
+    if (triton.__version__ != '3.0.0' or jit.pre_run_hooks
+            or JITFunction.cache_hook is not None
+            or knobs.runtime.jit_post_compile_hook is not None):
+        return None
+    # Mirror JIT.run's changed-global check, including changes after compilation.
+    missing = object()
+    for (name, _), (value, scope) in jit.used_global_vals.items():
+        if scope.get(name, missing) != value:
+            return None
+    return (jit, jit.fn, jit.src, jit.debug, jit.noinline, jit.cache_key,
+            jit.binder, jit.cache, run)
+
+
+def _signature(x, weight):
+    return (tuple(x.shape), tuple(weight.shape), x.dtype, weight.dtype,
+            x.stride(), weight.stride(), x.data_ptr() % 16, weight.data_ptr() % 16)
+
+
+def _dependency(x, weight):
+    generic = importlib.import_module('flag_gems.ops.linear')
+    metax = importlib.import_module('_metax.ops.linear')
+    import flag_gems
+    entry = generic.linear_kernel
+    metadata = metax._metadata(x, weight, None)
+    if metadata is None:
+        return None
+    xs, ws, device, dtype, xstride, wstride, xa, wa = metadata
+    signature = (entry, entry.jit_function, xs, ws, dtype, xstride, wstride, xa, wa)
+    record = metax._cache(x.device.index).get(signature)
+    if record is None:
+        return None
+    key, original = record[:2]
+    return (flag_gems, generic, metax, entry, entry.jit_function,
+            entry.kernel_cache, key, original, tuple(original[1].items()))
+
+
+def _valid_dependency(dep, device):
+    flag_gems, generic, metax, entry, jit, cache, key, original, config = dep
+    return (flag_gems.linear is metax.linear and generic.linear_kernel is entry
+            and entry.jit_function is jit and not entry._has_flagtune_tuner
+            and entry.kernel_cache is cache and cache[device].get(key) is original
+            and not original[4] and tuple(original[1].items()) == config)
+
+
 def try_gate_up_silu(x, weight):
     if not supported(x, weight):
+        _count('fallback')
         return None
+    device = x.device.index
+    cache = _cache(device)
+    signature = _signature(x, weight)
+    jit = paired_gate_up_kernel
+    stamp = _jit_stamp(jit)
+    record = cache.get(signature)
+    if record is not None:
+        previous, dep, compiled_cache, key, kernel, runner = record
+        if (stamp is not None and stamp == previous
+                and _valid_dependency(dep, device)
+                and jit.cache[device] is compiled_cache
+                and compiled_cache.get(key) is kernel):
+            out = torch.empty((x.shape[0], 6144), device=x.device, dtype=x.dtype)
+            if out.data_ptr() % 16 == 0:
+                with torch_device_fn.device(x.device):
+                    runner(x, weight, out, x.shape[0])
+                cache.move_to_end(signature)
+                _count('hit')
+                return out
+        del cache[signature]
+        _count('invalidated')
     meta = _baseline_record(x, weight)
     if meta is None:
+        _count('fallback')
         return None
     out = torch.empty((x.shape[0], 6144), device=x.device, dtype=x.dtype)
     grid = (triton.cdiv(x.shape[0], meta['BLOCK_SIZE_M']),
-            triton.cdiv(6144, meta['BLOCK_SIZE_N'] // 2))
+            triton.cdiv(6144, meta['BLOCK_SIZE_N'] // 2), 1)
+    # Normal JIT path launches exactly once and returns that compiled kernel.
     with torch_device_fn.device(x.device):
-        paired_gate_up_kernel[grid](x, weight, out, x.shape[0], 2048, 6144,
-                                   FUSED=True, **meta)
+        kernel = jit[grid](x, weight, out, x.shape[0], 2048, 6144,
+                           FUSED=True, **meta)
+    _count('cold')
+    if kernel is None:
+        # A compile hook may deliberately suppress execution. Use full FFN fallback.
+        return None
+    stamp = _jit_stamp(jit)
+    dep = _dependency(x, weight)
+    if stamp is None or dep is None or kernel is None or out.data_ptr() % 16:
+        return out
+    # One cold-only binding mirrors the pinned JIT.run cache key. No extra launch.
+    kwargs = dict(meta, FUSED=True, debug=jit.debug)
+    _, specs, constants, _, excess = jit.binder(
+        x, weight, out, x.shape[0], 2048, 6144, **kwargs)
+    key = ''.join(specs) + str((constants, excess))
+    compiled_cache = jit.cache[device]
+    if compiled_cache.get(key) is not kernel:
+        return out
+    cache[signature] = (stamp, dep, compiled_cache, key, kernel, kernel[grid])
+    cache.move_to_end(signature)
+    if len(cache) > 64:
+        cache.popitem(last=False)
+        _count('evicted')
     return out
 
 
