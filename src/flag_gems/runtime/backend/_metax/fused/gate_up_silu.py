@@ -180,6 +180,14 @@ def _valid_dependency(dep, device):
             and not original[4] and tuple(original[1].items()) == config)
 
 
+def _launch_metadata(rows, metadata):
+    # Keep the generic GEMM cache immutable; select only on descriptor preparation.
+    selected = dict(metadata)
+    if 1 <= rows <= 7 and selected['BLOCK_SIZE_M'] == 128:
+        selected['BLOCK_SIZE_M'] = 16
+    return selected
+
+
 def try_gate_up_silu(x, weight):
     if not supported(x, weight):
         _count('fallback')
@@ -209,6 +217,7 @@ def try_gate_up_silu(x, weight):
     if meta is None:
         _count('fallback')
         return None
+    meta = _launch_metadata(x.shape[0], meta)
     out = torch.empty((x.shape[0], 6144), device=x.device, dtype=x.dtype)
     grid = (triton.cdiv(x.shape[0], meta['BLOCK_SIZE_M']),
             triton.cdiv(6144, meta['BLOCK_SIZE_N'] // 2), 1)
@@ -247,6 +256,7 @@ def paired_intermediate(x, weight):
     meta = _baseline_record(x, weight)
     if meta is None:
         return None
+    meta = _launch_metadata(x.shape[0], meta)
     out = torch.empty((x.shape[0], 12288), device=x.device, dtype=x.dtype)
     grid = (triton.cdiv(x.shape[0], meta['BLOCK_SIZE_M']),
             triton.cdiv(6144, meta['BLOCK_SIZE_N'] // 2))
