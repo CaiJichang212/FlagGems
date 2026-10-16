@@ -14,6 +14,7 @@
 
 from .silu_and_mul import silu_and_mul
 from .flash_mla import flash_mla
+from .fused_add_rms_norm import fused_add_rms_norm
 from .rotary_embedding import apply_rotary_pos_emb
 from .sparse_attention import sparse_attn_triton
 from .top_k_per_row_prefill import top_k_per_row_prefill
@@ -22,6 +23,7 @@ __all__ = [
     "silu_and_mul",
     "apply_rotary_pos_emb",
     "flash_mla",
+    "fused_add_rms_norm",
     "sparse_attn_triton",
     "top_k_per_row_prefill",
 ]
