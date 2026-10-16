@@ -41,7 +41,7 @@ def _metadata(x, w, bias):
     xs, ws = tuple(x.shape), tuple(w.shape)
     xt, wt = x.dtype, w.dtype
     if (xd.type != 'cuda' or xd != wd or len(xs) != 2 or len(ws) != 2
-            or xs[0] <= 0 or ws not in ((2048, 6144), (12288, 2048))
+            or xs[0] <= 0 or ws not in ((2048, 6144), (12288, 2048), (2560, 2048), (2048, 2048))
             or xs[1] != ws[1] or xt != wt or xt != torch.bfloat16
             or not x.is_contiguous() or not w.is_contiguous()
             or x.requires_grad or w.requires_grad):
