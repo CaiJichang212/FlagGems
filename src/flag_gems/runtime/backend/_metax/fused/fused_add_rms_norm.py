@@ -46,8 +46,10 @@ def _metadata(x, residual, normalized_shape, weight, eps):
     if (len(x.shape) != 2 or x.shape[1] != 2048 or not 1 <= x.shape[0] <= 1024
             or tuple(residual.shape) != tuple(x.shape) or tuple(weight.shape) != (2048,)
             or x.device.type != 'cuda' or x.device != residual.device or x.device != weight.device
-            or any(t.dtype != torch.bfloat16 or not t.is_contiguous() or t.requires_grad
-                   for t in (x, residual, weight))):
+            or any(t.dtype != torch.bfloat16 or not t.is_contiguous()
+                   for t in (x, residual, weight))
+            or x.requires_grad or residual.requires_grad
+            or (weight.requires_grad and torch.is_grad_enabled())):
         return None
     # Contiguous supported tensors occupy one interval, including offset views.
     intervals = sorted((t.data_ptr(), t.data_ptr() + t.numel() * t.element_size())
