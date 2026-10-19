@@ -66,7 +66,7 @@ def qkv_rope_cache_kernel(X, W, O, POS, TABLE, CACHE, SLOTS,
 def supported(x, weight, positions, table, cache, slots):
     ts = (x, positions, table, cache, slots)
     if any(type(t) is not torch.Tensor for t in ts): return False
-    if type(weight) not in (torch.Tensor, torch.nn.Parameter): return False
+    if not (type(weight) is torch.Tensor or isinstance(weight, torch.nn.Parameter)): return False
     if torch.is_grad_enabled() or not torch.is_inference_mode_enabled() or torch.compiler.is_compiling(): return False
     if any(t.requires_grad for t in (*ts, weight)): return False
     if x.device.type != 'cuda' or any(t.device != x.device for t in (*ts, weight)): return False
