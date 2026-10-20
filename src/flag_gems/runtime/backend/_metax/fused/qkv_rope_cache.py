@@ -4,10 +4,15 @@
 Caller owns valid positions and unique nonnegative slots; negative/short slots
 are padding. No retry after submission. K/V projection values remain in QKV.
 """
+import os
+import threading
+from collections import OrderedDict
+
 import torch
 import triton
 import triton.language as tl
 from flag_gems.runtime import torch_device_fn
+from .gate_up_silu import _jit_stamp
 
 
 @triton.jit
@@ -83,15 +88,84 @@ def supported(x, weight, positions, table, cache, slots):
     return x.data_ptr() % 16 == weight.data_ptr() % 16 == 0
 
 
-def try_qkv_rope_cache(x, weight, positions, table, cache, slots):
-    """Return None only before launch; submitted exceptions propagate."""
+# Thread/PID/device local, bounded host descriptors. No data/stream ownership.
+_launch_local = threading.local()
+
+
+def clear_launch_cache():
+    _launch_local.devices = {}
+
+
+def _launch_cache(device):
+    if getattr(_launch_local, 'pid', None) != os.getpid():
+        _launch_local.pid = os.getpid()
+        _launch_local.devices = {}
+    return _launch_local.devices.setdefault(device, OrderedDict())
+
+
+def _qkv_stamp(jit):
+    # Standard JIT gives custom metadata the original one-dimensional grid.
+    # CompiledKernel's runner uses canonical 3D grid: preserve custom callbacks
+    # by falling back, even when installed after a descriptor was prepared.
+    if getattr(jit, 'launch_metadata', None) is not None:
+        return None
+    return _jit_stamp(jit)
+
+
+def _standard_launch(tensors, constants):
+    return qkv_rope_cache_kernel[(80,)](
+        *tensors, *constants, num_warps=4, num_stages=4, enable_fp_fusion=True)
+
+
+def try_qkv_rope_cache(x, weight, positions, table, cache, slots, *,
+                       phase='decode', layer=None):
+    """Exact original kernel; only reuse immutable compiled launch preparation.
+
+    phase/layer are observer labels from the actual caller, not dispatch switches.
+    Exceptions after submission propagate; never repeat an uncertain cache write.
+    """
     if not supported(x, weight, positions, table, cache, slots): return None
     out = torch.empty((x.shape[0], 2560), dtype=x.dtype, device=x.device)
+    tensors = (x, weight, out, positions, table, cache, slots)
+    constants = (x.shape[0], x.stride(0), weight.stride(0), positions.stride(0),
+                 *table.stride(), slots.stride(0), slots.numel(), cache.shape[1], table.shape[0])
+    # Full specialization metadata includes output and all auxiliary pointers;
+    # strides, offsets/alignment, dtype and shape changes cannot reuse stale code.
+    signature = tuple((tuple(t.shape), t.dtype, t.stride(), t.data_ptr() % 16)
+                      for t in tensors)
+    jit = qkv_rope_cache_kernel
+    descriptors = _launch_cache(x.device.index)
+    stamp = _qkv_stamp(jit)
+    record = descriptors.get(signature)
     with torch_device_fn.device(x.device):
-        kernel = qkv_rope_cache_kernel[(80,)](
-            x, weight, out, positions, table, cache, slots,
-            x.shape[0], x.stride(0), weight.stride(0), positions.stride(0),
-            *table.stride(), slots.stride(0), slots.numel(), cache.shape[1], table.shape[0],
-            num_warps=4, num_stages=4, enable_fp_fusion=True)
-    if kernel is None: raise RuntimeError('QKV fusion launch suppressed; cache state is unknown')
+        if record is not None:
+            previous, compiled_cache, key, kernel, runner = record
+            if (stamp is not None and stamp == previous
+                    and jit.cache[x.device.index] is compiled_cache
+                    and compiled_cache.get(key) is kernel):
+                # CANDIDATE_BRANCH: actual compiled invocation, never cold/fallback.
+                runner(*tensors)
+                descriptors.move_to_end(signature)
+                return out
+            del descriptors[signature]
+        kernel = _standard_launch(tensors, constants)
+        if kernel is None:
+            raise RuntimeError('QKV fusion launch suppressed; cache state is unknown')
+        stamp = _qkv_stamp(jit)
+        if stamp is None:
+            return out
+        # Mirror pinned JIT.run binding once, after its one real cold submission.
+        _, specs, constexprs, nonconstants, excess = jit.binder(
+            *tensors, *constants, num_warps=4, num_stages=4,
+            enable_fp_fusion=True, debug=jit.debug)
+        if len(nonconstants) != 7 or any(a is not b for a, b in zip(nonconstants, tensors)):
+            return out
+        key = ''.join(specs) + str((constexprs, excess))
+        compiled_cache = jit.cache[x.device.index]
+        if compiled_cache.get(key) is not kernel:
+            return out
+        descriptors[signature] = (stamp, compiled_cache, key, kernel, kernel[(80, 1, 1)])
+        descriptors.move_to_end(signature)
+        if len(descriptors) > 64:
+            descriptors.popitem(last=False)
     return out
