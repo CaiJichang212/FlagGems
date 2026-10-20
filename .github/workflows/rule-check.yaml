@@ -53,6 +53,8 @@ jobs:
   # as a required status check context; renaming this job would silently
   # break that check if the ruleset is ever re-enabled.
   rule-check-required:
+    # The required cpu-runner belongs to the upstream repository.
+    if: github.repository == 'flagos-ai/FlagGems'
     # cpu-runner is an already-running container; no container: image needed.
     runs-on: cpu-runner
     steps:

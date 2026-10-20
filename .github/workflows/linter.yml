@@ -29,6 +29,8 @@ on:
 
 jobs:
   code-style:
+    # The cpu-runner and its preinstalled tools are upstream infrastructure.
+    if: github.repository == 'flagos-ai/FlagGems'
     permissions:
       contents: read
     concurrency:

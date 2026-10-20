@@ -29,6 +29,8 @@ on:
 
 jobs:
   preprocess:
+    # This pipeline dispatches tests to upstream GPU and CPU runners.
+    if: github.repository == 'flagos-ai/FlagGems'
     # Runs on GitHub-hosted ubuntu-latest: this job only computes metadata via
     # the GitHub API and git (changed files, PR labels, backend matrix), needs
     # no self-hosted hardware, and avoids the injected-proxy environment where

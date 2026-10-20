@@ -28,6 +28,8 @@ permissions:
 
 jobs:
   sync:
+    # Mirror SSH credentials and destinations are managed by upstream.
+    if: github.repository == 'flagos-ai/FlagGems'
     strategy:
       matrix:
         include:
