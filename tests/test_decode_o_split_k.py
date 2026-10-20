@@ -11,6 +11,8 @@ import importlib
 import importlib.util
 import json
 import os
+import sys
+import time
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -50,6 +52,11 @@ class ActualModelControlled(unittest.TestCase):
         cases = p['numerical_policy']['cases']
         want = {(c['shape'][0],c['layer']):c for c in cases}
         captures = {};weights = {};requests = [];llm = None
+        loads = 0;init_attempts = 0;shutdown_completed = False
+        events = output.with_name('validation-model-events.jsonl')
+        def event(kind, **values):
+            with events.open('a') as stream:
+                stream.write(json.dumps(dict(wall=time.time(),pid=os.getpid(),event=kind,**values))+'\n')
         original = plugin.project_decode_o
         kernel_original = op.try_decode_o
         launches = []
@@ -80,7 +87,11 @@ class ActualModelControlled(unittest.TestCase):
         # All model/resource options come from the frozen protocol, no downscale.
         try:
             with GpuLease() as lease:
+                init_attempts += 1
+                event('model_init_attempt',model=p['model'],engine=p['engine'])
                 llm = LLM(model=p['model'], **p['engine'])
+                loads += 1
+                event('model_loaded')
                 reclaim_after_load(protocol_file.parent, output.with_name('checkpoint-post-load.json'),
                     lease, torch.cuda.synchronize, p['model'], p['checkpoint_post_load_reclaim'])
                 main = json.loads((protocol_file.parent/'main-selection.json').read_text())
@@ -88,12 +99,17 @@ class ActualModelControlled(unittest.TestCase):
                 with patch.object(plugin, 'project_decode_o', observed), patch.object(op, 'try_decode_o', launched):
                     for m in (1,2,3,4):
                         prompts = [dict(prompt_token_ids=r['prompt_token_ids']) for r in selected[:m]]
+                        event('validation_batch_submit',batch=m,planned_requests=m)
                         values = llm.generate(prompts, SamplingParams(temperature=0, max_tokens=4,
                             ignore_eos=True, seed=20261020), use_tqdm=False)
                         self.assertEqual(len(values),m)
                         for i,v in enumerate(values):
                             self.assertEqual(len(v.outputs[0].token_ids),4)
-                            requests.append(dict(batch=m,index=i,parent_index=selected[i]['parent_index'] if 'parent_index' in selected[i] else selected[i].get('id'),
+                            event('validation_request_complete',batch=m,index=i,request_id=v.request_id,
+                                prompt_tokens=len(v.prompt_token_ids),completion_tokens=len(v.outputs[0].token_ids),
+                                finish_reason=v.outputs[0].finish_reason)
+                            requests.append(dict(batch=m,index=i,request_id=v.request_id,
+                                usage=dict(prompt_tokens=len(v.prompt_token_ids),completion_tokens=len(v.outputs[0].token_ids),total_tokens=len(v.prompt_token_ids)+len(v.outputs[0].token_ids)),parent_index=selected[i]['parent_index'] if 'parent_index' in selected[i] else selected[i].get('id'),
                                 prompt_token_ids=v.prompt_token_ids,output_token_ids=v.outputs[0].token_ids,
                                 finish_reason=v.outputs[0].finish_reason))
                         output.with_name('validation-model-requests.json').write_text(json.dumps(dict(
@@ -137,11 +153,15 @@ class ActualModelControlled(unittest.TestCase):
             # Match the existing development worker shutdown path. Failures are
             # retained and the parent monitor confirms owned resource exit.
             if llm is not None:
+                event('model_shutdown_attempt')
                 llm.llm_engine.engine_core.shutdown()
+                shutdown_completed = True
+                event('model_shutdown_complete')
                 del llm
                 gc.collect()
             output.with_name('validation-model-lifecycle.json').write_text(json.dumps(dict(
-                source_refs=refs,service_starts=0,validation_model_loads=1,
+                source_refs=refs,service_starts=0,validation_model_init_attempts=init_attempts,
+                validation_model_loads=loads,shutdown_completed=shutdown_completed,command=sys.argv,
                 expected_requests=10,completed_requests=len(requests),captured_cases=len(captures),
                 expected_cases=len(cases),observer_restored=plugin.project_decode_o is original,
                 note='parent monitor is authoritative for shutdown/resource safety'),indent=2))
