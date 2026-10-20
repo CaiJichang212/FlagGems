@@ -22,6 +22,11 @@ spec = importlib.util.spec_from_file_location('_decode_o_cpu', cpu_path)
 cpu = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cpu)
 SupportContracts = cpu.SupportContracts
+capture_spec = importlib.util.spec_from_file_location('_decode_o_capture_cpu',
+    cpu_path.with_name('test_decode_o_capture.py'))
+capture_cpu = importlib.util.module_from_spec(capture_spec)
+capture_spec.loader.exec_module(capture_cpu)
+CaptureContracts = capture_cpu.CaptureContracts
 
 
 def binary(tensor, path):
@@ -29,6 +34,36 @@ def binary(tensor, path):
     path.write_bytes(value.view(__import__('torch').uint16).numpy().tobytes())
     return dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
                 shape=list(value.shape), format='bf16-le')
+
+
+def make_capture_observer(testcase, original, launches, want, captures, weights,
+                          output, refs, binary, synchronize):
+    """Bind unittest assertions separately from the actual attention receiver.
+
+    Never fabricate A/B or swallow a submitted error. Publish a case only after
+    the actual candidate launch and the original O module have both completed.
+    Dependencies are injectable so the producer itself is CPU regression tested.
+    """
+    def observed(attention, x, phase, layer):
+        before = len(launches)
+        result = original(attention, x, phase, layer)
+        testcase.assertEqual(len(launches), before + 1, 'actual O silently fell back')
+        key = (x.shape[0],layer)
+        if phase == 'decode' and key in want and key not in captures:
+            # Call the original actual O module, including platform dispatch;
+            # no torch reference is substituted for A and no B recomputation.
+            a = attention.o_proj(x)[0]
+            synchronize()
+            case = want[key]
+            if layer not in weights:
+                weights[layer] = binary(attention.o_proj.weight.T, output.with_name(f'weight-layer-{layer}.bf16'))
+            captures[key] = dict(case_id=case['id'], origin=case['origin'], phase=phase,
+                layer=layer, source_refs=refs,
+                input=binary(x, output.with_name(f'input-m{key[0]}-layer-{layer}.bf16')),
+                weight=weights[layer], A=a.float().cpu().tolist(), B=result.float().cpu().tolist())
+            output.write_text(json.dumps(list(captures.values()),indent=2))
+        return result
+    return observed
 
 
 class ActualModelControlled(unittest.TestCase):
@@ -65,25 +100,8 @@ class ActualModelControlled(unittest.TestCase):
             self.assertIsNotNone(result, 'actual dispatch reached unsupported kernel')
             launches.append((x.shape[0], layer))
             return result
-        def observed(self, x, phase, layer):
-            before = len(launches)
-            result = original(self, x, phase, layer)
-            self.assertEqual(len(launches), before + 1, 'actual O silently fell back')
-            key = (x.shape[0],layer)
-            if phase == 'decode' and key in want and key not in captures:
-                # Call the original actual O module, including platform dispatch;
-                # no torch reference is substituted for A and no B recomputation.
-                a = self.o_proj(x)[0]
-                torch.cuda.synchronize()
-                case = want[key]
-                if layer not in weights:
-                    weights[layer] = binary(self.o_proj.weight.T, output.with_name(f'weight-layer-{layer}.bf16'))
-                captures[key] = dict(case_id=case['id'], origin=case['origin'], phase=phase,
-                    layer=layer, source_refs=refs,
-                    input=binary(x, output.with_name(f'input-m{key[0]}-layer-{layer}.bf16')),
-                    weight=weights[layer], A=a.float().cpu().tolist(), B=result.float().cpu().tolist())
-                output.write_text(json.dumps(list(captures.values()),indent=2))
-            return result
+        observed = make_capture_observer(self, original, launches, want, captures,
+            weights, output, refs, binary, torch.cuda.synchronize)
         # All model/resource options come from the frozen protocol, no downscale.
         try:
             with GpuLease() as lease:
