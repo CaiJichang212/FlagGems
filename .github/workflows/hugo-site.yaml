@@ -44,6 +44,10 @@ defaults:
 
 jobs:
   build:
+    # Publish the upstream site only, and never chain a failed coverage run.
+    if: >-
+      github.repository == 'flagos-ai/FlagGems' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     env:
       DART_SASS_VERSION: 1.97.3

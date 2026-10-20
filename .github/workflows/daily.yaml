@@ -37,6 +37,8 @@ on:
 
 jobs:
   prepare:
+    # The GPU runners used below belong to the upstream repository.
+    if: github.repository == 'flagos-ai/FlagGems'
     runs-on: ubuntu-latest
     outputs:
       datetime: ${{ steps.get-date.outputs.CURRENT_DATE }}
