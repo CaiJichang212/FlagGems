@@ -9,10 +9,10 @@ import unittest
 SOURCE = Path(__file__).resolve().parents[1] / 'test_decode_o_split_k.py'
 
 
-def factory():
+def factory(name="make_capture_observer"):
     tree = ast.parse(SOURCE.read_text())
     node = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
-                and n.name == 'make_capture_observer')
+                and n.name == name)
     scope = {'json': json}
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(SOURCE), 'exec'), scope)
     return scope[node.name]
@@ -26,6 +26,41 @@ class Value:
 
 
 class CaptureContracts(unittest.TestCase):
+    def test_staggered_prefill_budget_reproduces_old_gap_and_retains_four_decoders(self):
+        budget = factory('capture_output_budget')
+        engine = dict(max_num_seqs=4, max_num_batched_tokens=1024, max_model_len=16384)
+        prompts = [dict(prompt_token_ids=[0]*1024) for _ in range(4)]
+        tokens = budget(prompts, engine)
+        # CPU schedule double: decode first, then fill residual budget with
+        # pending prefills. An entered request's first token is its prefill.
+        def seen(limit):
+            remaining = [1024]*4; generated = [0]*4; widths = []
+            while any(g < limit for g in generated):
+                active = [i for i in range(4) if remaining[i] == 0 and generated[i] < limit]
+                widths.append(len(active))
+                for i in active: generated[i] += 1
+                left = 1024 - len(active)
+                for i in range(4):
+                    if remaining[i] and left:
+                        used = min(left, remaining[i]); remaining[i] -= used; left -= used
+                        if remaining[i] == 0: generated[i] += 1
+            return widths
+        self.assertNotIn(4, seen(4))
+        self.assertIn(4, seen(tokens))
+        self.assertEqual(tokens, 10)
+        self.assertEqual(budget(prompts[:1], engine), 8)
+        longer = [dict(prompt_token_ids=[0]*4096) for _ in range(4)]
+        self.assertGreater(budget(longer, engine), tokens)
+
+    def test_capture_budget_rejects_capacity_and_context_instead_of_changing_engine(self):
+        budget = factory('capture_output_budget')
+        prompts = [dict(prompt_token_ids=[0]*1024) for _ in range(4)]
+        engine = dict(max_num_seqs=4, max_num_batched_tokens=1024, max_model_len=1028)
+        with self.assertRaisesRegex(ValueError, 'context'): budget(prompts, engine)
+        with self.assertRaisesRegex(ValueError, 'batch'): budget(prompts*2, engine)
+        engine.update(max_num_batched_tokens=3)
+        with self.assertRaisesRegex(ValueError, 'prefill capacity'): budget(prompts, engine)
+
     def setup_callback(self, output, *, launch=True, error=False):
         a, b = Value([[1.0]]), Value([[1.0078125]])
         x = NS(shape=(1, 2048))

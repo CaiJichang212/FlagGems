@@ -36,6 +36,28 @@ def binary(tensor, path):
                 shape=list(value.shape), format='bf16-le')
 
 
+def capture_output_budget(prompts, engine):
+    """Allow decode overlap after staggered chunked prefill, without engine changes.
+
+    Reserve one token per other decoder in every prefill step. The sum of
+    rounded prefill steps plus two decode steps bounds the serial-prefill
+    schedule for this finite batch. This is validation-only, never timing.
+    """
+    count = len(prompts)
+    if not count or count > engine['max_num_seqs']:
+        raise ValueError('capture batch outside frozen engine')
+    available = engine['max_num_batched_tokens'] - (count - 1)
+    if available <= 0:
+        raise ValueError('no prefill capacity after decode reservation')
+    lengths = [len(p['prompt_token_ids']) for p in prompts]
+    if any(n <= 0 for n in lengths):
+        raise ValueError('empty capture prompt')
+    tokens = max(8, sum((n + available - 1) // available for n in lengths) + 2)
+    if any(n + tokens > engine['max_model_len'] for n in lengths):
+        raise ValueError('capture overlap exceeds frozen context')
+    return tokens
+
+
 def make_capture_observer(testcase, original, launches, want, captures, weights,
                           output, refs, binary, synchronize):
     """Bind unittest assertions separately from the actual attention receiver.
@@ -117,12 +139,13 @@ class ActualModelControlled(unittest.TestCase):
                 with patch.object(plugin, 'project_decode_o', observed), patch.object(op, 'try_decode_o', launched):
                     for m in (1,2,3,4):
                         prompts = [dict(prompt_token_ids=r['prompt_token_ids']) for r in selected[:m]]
-                        event('validation_batch_submit',batch=m,planned_requests=m)
-                        values = llm.generate(prompts, SamplingParams(temperature=0, max_tokens=4,
+                        tokens = capture_output_budget(prompts, p['engine'])
+                        event('validation_batch_submit',batch=m,planned_requests=m,max_tokens=tokens)
+                        values = llm.generate(prompts, SamplingParams(temperature=0, max_tokens=tokens,
                             ignore_eos=True, seed=20261020), use_tqdm=False)
                         self.assertEqual(len(values),m)
                         for i,v in enumerate(values):
-                            self.assertEqual(len(v.outputs[0].token_ids),4)
+                            self.assertEqual(len(v.outputs[0].token_ids),tokens)
                             event('validation_request_complete',batch=m,index=i,request_id=v.request_id,
                                 prompt_tokens=len(v.prompt_token_ids),completion_tokens=len(v.outputs[0].token_ids),
                                 finish_reason=v.outputs[0].finish_reason)
