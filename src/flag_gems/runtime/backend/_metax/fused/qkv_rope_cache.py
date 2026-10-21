@@ -95,3 +95,21 @@ def try_qkv_rope_cache(x, weight, positions, table, cache, slots):
             num_warps=4, num_stages=4, enable_fp_fusion=True)
     if kernel is None: raise RuntimeError('QKV fusion launch suppressed; cache state is unknown')
     return out
+
+def try_qkv_rope_cache_m4_col64(x, weight, positions, table, cache, slots):
+    """Same arithmetic and output/cache layout; widen columns 32 -> 64.
+
+    No persistent allocation, new reduction, split-K or submitted fallback.
+    Exact equality to the default tile is a mandatory external gate.
+    """
+    if not supported(x, weight, positions, table, cache, slots): return None
+    if x.shape[0] != 4: return None
+    out = torch.empty((4, 2560), dtype=x.dtype, device=x.device)
+    with torch_device_fn.device(x.device):
+        kernel = qkv_rope_cache_kernel[(40,)](
+            x, weight, out, positions, table, cache, slots,
+            4, x.stride(0), weight.stride(0), positions.stride(0),
+            *table.stride(), slots.stride(0), slots.numel(), cache.shape[1], table.shape[0],
+            BLOCK_N=64, num_warps=4, num_stages=4, enable_fp_fusion=True)
+    if kernel is None: raise RuntimeError('QKV col64 launch suppressed; cache state is unknown')
+    return out
