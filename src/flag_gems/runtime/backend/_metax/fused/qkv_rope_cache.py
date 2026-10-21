@@ -95,3 +95,77 @@ def try_qkv_rope_cache(x, weight, positions, table, cache, slots):
             num_warps=4, num_stages=4, enable_fp_fusion=True)
     if kernel is None: raise RuntimeError('QKV fusion launch suppressed; cache state is unknown')
     return out
+
+
+@triton.jit
+def qkv_value_direct_kernel(X, W, O, POS, TABLE, CACHE, SLOTS,
+                          M: tl.constexpr, XS: tl.constexpr, WS: tl.constexpr,
+                          PS: tl.constexpr, TS: tl.constexpr, TD: tl.constexpr,
+                          SS: tl.constexpr, NS: tl.constexpr, PAGES: tl.constexpr,
+                          MAXPOS: tl.constexpr,
+                          BLOCK_M: tl.constexpr = 128,
+                          BLOCK_N: tl.constexpr = 32,
+                          BLOCK_K: tl.constexpr = 32):
+    rm = tl.arange(0, BLOCK_M)
+    lane = tl.arange(0, BLOCK_N)
+    pair = tl.program_id(0) * (BLOCK_N // 2) + lane // 2
+    # Each adjacent pair owns NeoX dimensions d,d+64 of exactly one head.
+    col = (pair // 64) * 128 + pair % 64 + (lane % 2) * 64
+    rk = tl.arange(0, BLOCK_K)
+    xp = X + rm[:, None] * XS + rk[None, :]
+    wp = W + col[None, :] * WS + rk[:, None]
+    acc = tl.zeros((BLOCK_M, BLOCK_N), tl.float32)
+    for k in range(0, 2048 // BLOCK_K):
+        a = tl.load(xp, rm[:, None] < M, other=0.)
+        b = tl.load(wp)
+        acc += tl.dot(a, b, allow_tf32=False)
+        xp += BLOCK_K
+        wp += BLOCK_K
+    rounded = acc.to(tl.bfloat16)
+    lo, hi = tl.split(tl.reshape(rounded, (BLOCK_M, BLOCK_N // 2, 2)))
+    pp = tl.program_id(0) * (BLOCK_N // 2) + tl.arange(0, BLOCK_N // 2)
+    c0 = (pp // 64) * 128 + pp % 64
+    pos = tl.load(POS + rm * PS, rm < M, other=0).to(tl.int64)
+    valid = (pos >= 0) & (pos < MAXPOS)
+    tl.device_assert((rm >= M) | valid, 'RoPE position out of range')
+    # V projection CTAs (72..79) never use a rotated value. Q/K retain
+    # the original FP32 RoPE order; V avoids both table loads and products.
+    if tl.program_id(0) < 72:
+        cos = tl.load(TABLE + pos[:, None] * TS + (pp % 64)[None, :] * TD,
+                      (rm[:, None] < M) & valid[:, None], other=0).to(tl.float32)
+        sin = tl.load(TABLE + pos[:, None] * TS + ((pp % 64) + 64)[None, :] * TD,
+                      (rm[:, None] < M) & valid[:, None], other=0).to(tl.float32)
+        # Exact standalone order: BF16 projection, FP32 table promotion, FMA enabled.
+        rlo = lo.to(tl.float32) * cos + hi.to(tl.float32) * (-sin)
+        rhi = hi.to(tl.float32) * cos + lo.to(tl.float32) * sin
+    else:
+        rlo = lo
+        rhi = hi
+    mask = (rm[:, None] < M) & valid[:, None]
+    tl.store(O + rm[:, None] * 2560 + c0[None, :], tl.where(c0[None, :] < 2048, rlo, lo), mask)
+    tl.store(O + rm[:, None] * 2560 + (c0 + 64)[None, :], tl.where(c0[None, :] < 2048, rhi, hi), mask)
+    slot = tl.load(SLOTS + rm * SS, (rm < M) & (rm < NS), other=-1).to(tl.int64)
+    tl.device_assert((rm >= M) | (slot < PAGES * 16), 'KV slot out of range')
+    active = (slot >= 0) & (slot < PAGES * 16) & valid & (rm < M)
+    safe = tl.where(active, slot, 0)
+    # K/V blocks own disjoint cache halves; no cross-CTA read/write dependency.
+    cache_col = c0 - 2048
+    ptr = CACHE + (cache_col[None, :] // 256) * (PAGES * 4096) + safe[:, None] * 256 + (cache_col % 256)[None, :]
+    cmask = active[:, None] & (c0[None, :] >= 2048)
+    tl.store(ptr, tl.where(c0[None, :] < 2304, rlo, lo).to(tl.bfloat16), cmask)
+    tl.store(ptr + 64, tl.where(c0[None, :] < 2304, rhi, hi).to(tl.bfloat16), cmask)
+
+
+def try_qkv_rope_cache_m4_value_direct(x, weight, positions, table, cache, slots):
+    """Return None only before launch; submitted exceptions propagate."""
+    if not supported(x, weight, positions, table, cache, slots): return None
+    if x.shape[0] != 4: return None
+    out = torch.empty((x.shape[0], 2560), dtype=x.dtype, device=x.device)
+    with torch_device_fn.device(x.device):
+        kernel = qkv_value_direct_kernel[(80,)](
+            x, weight, out, positions, table, cache, slots,
+            x.shape[0], x.stride(0), weight.stride(0), positions.stride(0),
+            *table.stride(), slots.stride(0), slots.numel(), cache.shape[1], table.shape[0],
+            num_warps=4, num_stages=4, enable_fp_fusion=True)
+    if kernel is None: raise RuntimeError('QKV value-direct launch suppressed; cache state is unknown')
+    return out
