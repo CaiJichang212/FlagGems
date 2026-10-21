@@ -139,8 +139,9 @@ def qkv_value_direct_kernel(X, W, O, POS, TABLE, CACHE, SLOTS,
         rlo = lo.to(tl.float32) * cos + hi.to(tl.float32) * (-sin)
         rhi = hi.to(tl.float32) * cos + lo.to(tl.float32) * sin
     else:
-        rlo = lo
-        rhi = hi
+        # Match the FP32 branch-merge type without rotating V; BF16->FP32 is exact.
+        rlo = lo.to(tl.float32)
+        rhi = hi.to(tl.float32)
     mask = (rm[:, None] < M) & valid[:, None]
     tl.store(O + rm[:, None] * 2560 + c0[None, :], tl.where(c0[None, :] < 2048, rlo, lo), mask)
     tl.store(O + rm[:, None] * 2560 + (c0 + 64)[None, :], tl.where(c0[None, :] < 2048, rhi, hi), mask)
