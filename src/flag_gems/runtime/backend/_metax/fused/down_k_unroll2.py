@@ -24,11 +24,11 @@ def down_unroll2_kernel(X, W, O, M, K: tl.constexpr, N: tl.constexpr,
     for group in range(0, tl.cdiv(K, 2 * BLOCK_SIZE_K)):
         for inner in tl.static_range(0, 2):
             k = group * 2 + inner
-            a = tl.load(xp, (rm[:, None] < M) & (rk[None, :] < K-k*BLOCK_SIZE_K), other=0.)
-            b = tl.load(wp, (rk[:, None] < K-k*BLOCK_SIZE_K) & (rn[None, :] < N), other=0.)
+            # Index-derived addresses avoid the MACA pipeline pass's unsupported
+            # immediate/non-immediate dependence on a loop-carried pointer.
+            a = tl.load(xp + k * BLOCK_SIZE_K, (rm[:, None] < M) & (rk[None, :] < K-k*BLOCK_SIZE_K), other=0.)
+            b = tl.load(wp + k * BLOCK_SIZE_K, (rk[:, None] < K-k*BLOCK_SIZE_K) & (rn[None, :] < N), other=0.)
             acc += tl.dot(a, b, allow_tf32=False)
-            xp += BLOCK_SIZE_K
-            wp += BLOCK_SIZE_K
     tl.store(O + rm[:, None] * N + rn[None, :], acc.to(tl.bfloat16),
              (rm[:, None] < M) & (rn[None, :] < N))
 
