@@ -108,6 +108,37 @@ class RealWeightGPU(unittest.TestCase):
                     ref, detail = references(x, weight, pre, positions, table, b[:, :2048].view(m, 16, 128), cache, slots)
                     row = dict(layer=layer, M=m, exact=bool(exact), sentinel=bool(sentinel), reference=ref,
                                weight_type=type(weight).__module__ + '.' + type(weight).__name__, allocations_A=2, allocations_B=1)
+                    if layer == 0:
+                        # Exercise the actual FA2 destination ABI with the shared
+                        # allocation, including its nonzero storage offset.
+                        from flash_attn import flash_attn_interface as fa
+                        decode = importlib.import_module('vllm_fl.dispatch.backends.vendor.metax.impl.attention.ops.decode_output')
+                        q = b[:, :2048].view(m, 1, 16, 128)
+                        kc, vc = cache.unbind(0)
+                        bt = torch.arange(4, device='cuda', dtype=torch.int32).repeat(m, 1)
+                        lens = torch.tensor([16, 17, 32, 33][:m], device='cuda', dtype=torch.int32)
+                        scale = 128 ** -.5
+                        expected_attention = fa.flash_attn_with_kvcache(q, kc, vc, cache_seqlens=lens,
+                            block_table=bt, softmax_scale=scale, causal=True).view(m, 16, 128)
+                        self.assertTrue(decode.try_decode_into(fa.flash_attn_with_kvcache, q, kc, vc,
+                            attention, bt, lens, scale, (-1, -1), None, 0., None))
+                        self.assertTrue(torch.equal(attention, expected_attention))
+                        self.assertTrue(torch.equal(b, a))
+                        qc = q[:, 0].cpu().double()
+                        keys = kc.reshape(-1, 2, 128).cpu().double().repeat_interleave(8, dim=1)
+                        values = vc.reshape(-1, 2, 128).cpu().double().repeat_interleave(8, dim=1)
+                        independent = []
+                        for i, length in enumerate(lens.cpu().tolist()):
+                            logits = torch.einsum('hd,lhd->hl', qc[i], keys[:length]) * scale
+                            independent.append(torch.einsum('hl,lhd->hd', logits.softmax(-1), values[:length]))
+                        independent = torch.stack(independent)
+                        difference = (attention.cpu().double() - independent).abs()
+                        violations = (difference > (.02 + .02 * independent.abs())).nonzero().tolist()
+                        row['attention_destination'] = dict(exact=True, fp64_passed=not violations,
+                            violations=violations, max_abs=float(difference.max()), storage_offset=attention.storage_offset())
+                        if violations:
+                            torch.save(dict(actual=attention.cpu(), reference=independent, violations=violations), artifact/'attention-allocation-failure.pt')
+                            self.fail('independent attention output reference failed')
                     rows.append(row)
                     if not exact or not sentinel or not ref['passed']:
                         torch.save(dict(row=row, x=x.cpu(), weight=weight.cpu(), A=a.cpu(), B=b.cpu(), cache=cache.cpu(), **detail), artifact/'allocation-failure.pt')
