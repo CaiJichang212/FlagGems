@@ -43,21 +43,25 @@ def _metadata(x, residual, normalized_shape, weight, eps):
             or type(eps) is not float or not math.isfinite(eps) or eps < 0
             or tuple(normalized_shape) != (2048,)):
         return None
-    if (len(x.shape) != 2 or x.shape[1] != 2048 or not 1 <= x.shape[0] <= 1024
-            or tuple(residual.shape) != tuple(x.shape) or tuple(weight.shape) != (2048,)
-            or x.device.type != 'cuda' or x.device != residual.device or x.device != weight.device
+    shape = tuple(x.shape)
+    if (len(shape) != 2 or shape[1] != 2048 or not 1 <= shape[0] <= 1024
+            or tuple(residual.shape) != shape or tuple(weight.shape) != (2048,)):
+        return None
+    device = x.device
+    if (device.type != 'cuda' or device != residual.device or device != weight.device
             or any(t.dtype != torch.bfloat16 or not t.is_contiguous()
                    for t in (x, residual, weight))
             or x.requires_grad or residual.requires_grad
             or (weight.requires_grad and torch.is_grad_enabled())):
         return None
-    # Contiguous supported tensors occupy one interval, including offset views.
-    intervals = sorted((t.data_ptr(), t.data_ptr() + t.numel() * t.element_size())
-                       for t in (x, residual, weight))
+    # Call-local addresses only: never retain tensors or pointers across calls.
+    pointers = tuple(t.data_ptr() for t in (x, residual, weight))
+    intervals = sorted((ptr, ptr + t.numel() * t.element_size())
+                       for ptr, t in zip(pointers, (x, residual, weight)))
     if any(a[1] > b[0] for a, b in zip(intervals, intervals[1:])):
         return None
-    return (tuple(x.shape), x.device, tuple(t.data_ptr() % 16 == 0
-                                         for t in (x, residual, weight)))
+    return (shape, device, tuple(ptr % 16 == 0 for ptr in pointers))
+
 
 
 def _dynamic(entry):
