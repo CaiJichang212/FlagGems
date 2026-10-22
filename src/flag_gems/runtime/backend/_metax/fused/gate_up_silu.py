@@ -180,13 +180,15 @@ def _valid_dependency(dep, device):
             and not original[4] and tuple(original[1].items()) == config)
 
 
-def try_gate_up_silu(x, weight):
+def try_gate_up_silu(x, weight, *, row32=False):
     if not supported(x, weight):
         _count('fallback')
         return None
+    if row32 and tuple(x.shape) != (4, 2048):
+        return None
     device = x.device.index
     cache = _cache(device)
-    signature = _signature(x, weight)
+    signature = (_signature(x, weight), row32)
     jit = paired_gate_up_kernel
     stamp = _jit_stamp(jit)
     record = cache.get(signature)
@@ -209,6 +211,10 @@ def try_gate_up_silu(x, weight):
     if meta is None:
         _count('fallback')
         return None
+    if row32:
+        if meta['BLOCK_SIZE_M'] != 64:
+            return None
+        meta = dict(meta, BLOCK_SIZE_M=32)
     out = torch.empty((x.shape[0], 6144), device=x.device, dtype=x.dtype)
     grid = (triton.cdiv(x.shape[0], meta['BLOCK_SIZE_M']),
             triton.cdiv(6144, meta['BLOCK_SIZE_N'] // 2), 1)
