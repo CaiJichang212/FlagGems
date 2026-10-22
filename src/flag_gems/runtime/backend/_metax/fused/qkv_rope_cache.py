@@ -83,10 +83,23 @@ def supported(x, weight, positions, table, cache, slots):
     return x.data_ptr() % 16 == weight.data_ptr() % 16 == 0
 
 
-def try_qkv_rope_cache(x, weight, positions, table, cache, slots):
+def _output_supported(out, x, weight, positions, table, cache, slots):
+    # Private destination ABI: never permit overwriting any input or KV storage.
+    # The paired attention destination is a disjoint view, not an input here.
+    return (type(out) is torch.Tensor and out.device == x.device
+            and out.dtype == x.dtype and tuple(out.shape) == (x.shape[0], 2560)
+            and out.is_contiguous() and not out.requires_grad and out.data_ptr() % 16 == 0
+            and out.untyped_storage().data_ptr() not in {
+                t.untyped_storage().data_ptr() for t in (x, weight, positions, table, cache, slots)})
+
+
+def try_qkv_rope_cache(x, weight, positions, table, cache, slots, *, out=None):
     """Return None only before launch; submitted exceptions propagate."""
     if not supported(x, weight, positions, table, cache, slots): return None
-    out = torch.empty((x.shape[0], 2560), dtype=x.dtype, device=x.device)
+    if out is None:
+        out = torch.empty((x.shape[0], 2560), dtype=x.dtype, device=x.device)
+    elif not _output_supported(out, x, weight, positions, table, cache, slots):
+        return None
     with torch_device_fn.device(x.device):
         kernel = qkv_rope_cache_kernel[(80,)](
             x, weight, out, positions, table, cache, slots,
