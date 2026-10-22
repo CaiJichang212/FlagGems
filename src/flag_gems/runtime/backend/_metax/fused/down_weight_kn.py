@@ -30,7 +30,7 @@ def pack_down_weight(weight):
 
 
 def try_down_kn(x,weight,record):
-    if record is None or record[3] is not True:
+    if not isinstance(record,list) or len(record)!=4 or record[3] is not True:
         return None
     packed,old,packed_old,_=record
     if tensor_stamp(weight)!=old or tensor_stamp(packed)!=packed_old:
