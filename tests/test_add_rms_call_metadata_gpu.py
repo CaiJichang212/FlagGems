@@ -37,7 +37,11 @@ class AddRMSMetadataGPU(unittest.TestCase):
         if kind=='dtype':x=x.float();r=r.float();w=w.float()
         if kind=='parameter':
             from vllm.model_executor.parameter import ModelWeightParameter
-            w=ModelWeightParameter(data=w.detach(),input_dim=0,output_dim=0,weight_loader=lambda *a:None)
+            # Exercise the real Tensor subclass without creating a model process group.
+            # Only constructor TP identity queries are supplied; tensor behavior is real.
+            from unittest.mock import patch
+            with patch('vllm.model_executor.parameter.get_tensor_model_parallel_rank',return_value=0), patch('vllm.model_executor.parameter.get_tensor_model_parallel_world_size',return_value=1):
+                w=ModelWeightParameter(data=w.detach(),input_dim=0,output_dim=0,weight_loader=lambda *a:None)
         if kind=='gradient':x.requires_grad_()
         if kind=='weight-grad':w.requires_grad_()
         return x,r,w,backing
