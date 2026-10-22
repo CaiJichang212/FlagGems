@@ -33,7 +33,7 @@ def post_norm_gate_kernel(X, R, NW, W, O, NR, EPS: tl.constexpr,
         small = tl.gather(normalized, ix, axis=1)
         ir = tl.broadcast_to(tl.minimum(rm, 3)[:, None], (BLOCK_SIZE_M, BLOCK_SIZE_K))
         a = tl.gather(small, ir, axis=0)
-        a = tl.where(rm[:, None] < 4, a, 0.)
+        a = tl.where(rm[:, None] < 4, a, 0.).to(tl.bfloat16)
         w = tl.load(W+(rk[:, None]+k*BLOCK_SIZE_K)+wn[None, :]*2048,
                     (rk[:, None]+k*BLOCK_SIZE_K < 2048)&(rn[None, :]<6144), other=0.)
         acc += tl.dot(a, w, allow_tf32=False)
