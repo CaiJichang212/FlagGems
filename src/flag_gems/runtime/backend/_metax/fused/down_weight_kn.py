@@ -26,13 +26,13 @@ def pack_down_weight(weight):
         return None
     with torch.inference_mode(False),torch.no_grad():
         packed=weight.detach().T.contiguous()
-    return packed,stamp,tensor_stamp(packed)
+    return [packed,stamp,tensor_stamp(packed),True]
 
 
 def try_down_kn(x,weight,record):
-    if record is None:
+    if record is None or record[3] is not True:
         return None
-    packed,old,packed_old=record
+    packed,old,packed_old,_=record
     if tensor_stamp(weight)!=old or tensor_stamp(packed)!=packed_old:
         return None
     if (type(x) is not torch.Tensor or tuple(x.shape)!=(4,6144) or x.device!=weight.device
