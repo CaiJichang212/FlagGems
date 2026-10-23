@@ -1,5 +1,5 @@
 # Copyright 2026 FlagOS Contributors. Licensed under Apache-2.0.
-"""M4 down projection: 8x8 transpose CTA column order, original arithmetic/tiles."""
+"""M1..4 down projection: 8x8 transpose CTA column order, original arithmetic/tiles."""
 from collections import OrderedDict
 import os
 import threading
@@ -41,7 +41,7 @@ def supported(x, weight):
             and not x.requires_grad and not weight.requires_grad
             and x.device.type == 'cuda' and x.device == weight.device
             and x.dtype == weight.dtype == torch.bfloat16
-            and tuple(x.shape) == (4, 6144) and tuple(weight.shape) == (2048, 6144)
+            and x.ndim == 2 and 1 <= x.shape[0] <= 4 and x.shape[1] == 6144 and tuple(weight.shape) == (2048, 6144)
             and x.is_contiguous() and weight.is_contiguous()
             and x.data_ptr() % 16 == weight.data_ptr() % 16 == 0
             and not torch.compiler.is_compiling())
@@ -76,10 +76,10 @@ def try_down_cta_order(x, weight):
         previous, dep, compiled_cache, key, kernel, runner = record
         if (stamp == previous and launch._valid_dependency(dep, device)
                 and jit.cache[device] is compiled_cache and compiled_cache.get(key) is kernel):
-            out = torch.empty((4, 2048), device=x.device, dtype=x.dtype)
+            out = torch.empty((x.shape[0], 2048), device=x.device, dtype=x.dtype)
             if out.data_ptr() % 16 == 0:
                 with torch_device_fn.device(x.device):
-                    runner(x, weight, out, 4)
+                    runner(x, weight, out, x.shape[0])
                 cache.move_to_end(signature)
                 return out
         del cache[signature]
@@ -87,20 +87,20 @@ def try_down_cta_order(x, weight):
     if meta != dict(BLOCK_SIZE_M=128, BLOCK_SIZE_N=32, BLOCK_SIZE_K=32,
                     num_warps=4, num_stages=4):
         return None
-    out = torch.empty((4, 2048), device=x.device, dtype=x.dtype)
+    out = torch.empty((x.shape[0], 2048), device=x.device, dtype=x.dtype)
     if out.data_ptr() % 16:
         return None
-    grid = (triton.cdiv(4, meta['BLOCK_SIZE_M']), triton.cdiv(2048, meta['BLOCK_SIZE_N']), 1)
+    grid = (triton.cdiv(x.shape[0], meta['BLOCK_SIZE_M']), triton.cdiv(2048, meta['BLOCK_SIZE_N']), 1)
     # Once submitted, propagate errors; never execute a second fallback launch.
     with torch_device_fn.device(x.device):
-        kernel = jit[grid](x, weight, out, 4, 6144, 2048, SWIZZLE=True, **meta)
+        kernel = jit[grid](x, weight, out, x.shape[0], 6144, 2048, SWIZZLE=True, **meta)
     if kernel is None:
         return None  # Standard compile hook suppressed execution.
     stamp = launch._jit_stamp(jit)
     dep = launch._dependency(x, weight)
     if stamp is None or dep is None:
         return out
-    _, specs, constants, _, excess = jit.binder(x, weight, out, 4, 6144, 2048,
+    _, specs, constants, _, excess = jit.binder(x, weight, out, x.shape[0], 6144, 2048,
                                                **dict(meta, SWIZZLE=True, debug=jit.debug))
     key = ''.join(specs) + str((constants, excess))
     compiled_cache = jit.cache[device]
